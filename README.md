@@ -1,3 +1,16 @@
+# Start command:
+
+    git clone https://github.com/hmmrfll/EPILEPSY.git
+    npm install
+
+# Command to pull new data
+
+    git remote add origin https://github.com/hmmrfll/hedgieBot-backend.git
+    git branch -M main
+    git add .
+    git commit -m "some commit information"
+    git push -u origin main
+
 # Start with docker:
 
     docker compose up --build
