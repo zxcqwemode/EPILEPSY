@@ -3,7 +3,7 @@
     git clone https://github.com/hmmrfll/EPILEPSY.git
     npm install
 
-# Command to pull new data
+# Command to push new data
 
     git remote add origin https://github.com/hmmrfll/hedgieBot-backend.git
     git branch -M main
