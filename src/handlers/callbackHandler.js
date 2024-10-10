@@ -6,10 +6,9 @@ module.exports = async function handleCallbackQuery(bot, callbackQuery) {
     const data = callbackQuery.data;
 
     try {
-        // Выбор роли
+        // Выбор роли пациента
         if (data === 'role_patient') {
             await db.query('UPDATE users SET role = $1, step = $2 WHERE chat_id = $3', ['patient', 'language', chatId]);
-
             await bot.editMessageText(`Записал, ваша роль: Пациент.`, {
                 chat_id: chatId,
                 message_id: messageId,
@@ -19,34 +18,32 @@ module.exports = async function handleCallbackQuery(bot, callbackQuery) {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            {text: 'Русский', callback_data: 'language_russian'},
-                            {text: 'English', callback_data: 'language_english'},
+                            { text: 'Русский', callback_data: 'language_russian' },
+                            { text: 'English', callback_data: 'language_english' },
                         ],
                     ],
                 },
             };
             bot.sendMessage(chatId, 'Выберите язык:', options);
 
+            // Подтверждение выбора роли врача
         } else if (data === 'role_doctor') {
-            // Показываем подтверждение выбора роли врача
             await bot.editMessageText(`Вы уверены, что хотите выбрать роль Врач? Все данные пациента будут удалены.`, {
                 chat_id: chatId,
                 message_id: messageId,
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            {text: 'Да', callback_data: 'confirm_doctor'},
-                            {text: 'Нет', callback_data: 'cancel_doctor'},
+                            { text: 'Да', callback_data: 'confirm_doctor' },
+                            { text: 'Нет', callback_data: 'cancel_doctor' },
                         ],
                     ],
                 },
             });
 
+            // Подтверждение удаления данных пациента и выбор роли врача
         } else if (data === 'confirm_doctor') {
-            // Удаляем все данные о пациенте
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
-
-            // Создаем запись о враче
             await db.query('INSERT INTO doctors (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING', [chatId]);
 
             await bot.editMessageText(`Записал, ваша роль: Врач. Все данные как пациента были удалены.`, {
@@ -54,32 +51,100 @@ module.exports = async function handleCallbackQuery(bot, callbackQuery) {
                 message_id: messageId,
             });
 
+            // Показываем кнопку "Список пациентов"
+            const options = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }],
+                    ],
+                },
+            };
+            bot.sendMessage(chatId, 'Добро пожаловать в кабинет врача!', options);
+
+            // Отмена выбора роли врача
         } else if (data === 'cancel_doctor') {
             await bot.editMessageText('Выбор роли отменен. Пожалуйста, выберите роль заново.', {
                 chat_id: chatId,
                 message_id: messageId,
             });
 
-            // Возвращаем пользователя к выбору роли
             const options = {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            {text: 'Врач', callback_data: 'role_doctor'},
-                            {text: 'Пациент', callback_data: 'role_patient'},
+                            { text: 'Врач', callback_data: 'role_doctor' },
+                            { text: 'Пациент', callback_data: 'role_patient' },
                         ],
                     ],
                 },
             };
             bot.sendMessage(chatId, 'Выберите вашу роль:', options);
-        }
 
-else if (data === 'cancel_doctor') {
-            await bot.editMessageText('Отмена выбора роли врача.', {
+            // Показ списка пациентов
+        } else if (data.startsWith('patient_list_page_')) {
+            const page = parseInt(data.split('_').pop(), 10);
+            const patients = [];
+
+            // Генерация имен пациентов для текущей страницы
+            for (let i = 1; i <= 9; i++) {
+                const patientIndex = i + (page - 1) * 9; // Получаем реальный индекс пациента
+                patients.push({ text: `Пациент ${patientIndex}`, callback_data: `patient_${patientIndex}` });
+            }
+
+            const patientRows = [];
+            for (let i = 0; i < patients.length; i += 3) {
+                patientRows.push(patients.slice(i, i + 3));
+            }
+
+            patientRows.push([
+                { text: '⬅️ Влево', callback_data: `patient_list_page_${page > 1 ? page - 1 : page}` },
+                { text: 'Вернуться в меню', callback_data: 'doctor_menu' },
+                { text: 'Вправо ➡️', callback_data: `patient_list_page_${page + 1}` },
+            ]);
+
+            await bot.editMessageText(`Вот список ваших пациентов:`, {
                 chat_id: chatId,
                 message_id: messageId,
+                reply_markup: {
+                    inline_keyboard: patientRows,
+                },
             });
-        } else if (data === 'language_russian' || data === 'language_english') {
+
+            // Обработка нажатия на имя пациента
+        } else if (data.startsWith('patient_')) {
+            const patientIndex = data.split('_')[1];
+            await bot.editMessageText(`Пациент: Пациент ${patientIndex}`, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            { text: 'Вернуться назад', callback_data: `patient_list_page_${1}` }, // Возвращаемся на первую страницу списка пациентов
+                            { text: 'Прислать историю сообщений с пациентом', callback_data: `send_history_${patientIndex}` },
+                        ],
+                    ],
+                },
+            });
+
+            // Вернуться в меню врача
+        } else if (data === 'doctor_menu') {
+            const options = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }],
+                    ],
+                },
+            };
+            bot.sendMessage(chatId, 'Вы вернулись в меню врача.', options);
+
+            // Здесь можно обработать отправку истории сообщений
+        } else if (data.startsWith('send_history_')) {
+            const patientIndex = data.split('_')[2];
+            await bot.sendMessage(chatId, `История сообщений с Пациентом ${patientIndex} отправлена.`); // Это заглушка, здесь должна быть реальная логика
+
+        }
+
+else if (data === 'language_russian' || data === 'language_english') {
             const language = data === 'language_russian' ? 'Русский' : 'English';
 
             await db.query('UPDATE users SET language = $1, step = $2 WHERE chat_id = $3', [language, 'gender', chatId]);
