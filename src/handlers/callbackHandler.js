@@ -19,14 +19,66 @@ module.exports = async function handleCallbackQuery(bot, callbackQuery) {
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: 'Русский', callback_data: 'language_russian' },
-                            { text: 'English', callback_data: 'language_english' },
+                            {text: 'Русский', callback_data: 'language_russian'},
+                            {text: 'English', callback_data: 'language_english'},
                         ],
                     ],
                 },
             };
             bot.sendMessage(chatId, 'Выберите язык:', options);
 
+        } else if (data === 'role_doctor') {
+            // Показываем подтверждение выбора роли врача
+            await bot.editMessageText(`Вы уверены, что хотите выбрать роль Врач? Все данные пациента будут удалены.`, {
+                chat_id: chatId,
+                message_id: messageId,
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {text: 'Да', callback_data: 'confirm_doctor'},
+                            {text: 'Нет', callback_data: 'cancel_doctor'},
+                        ],
+                    ],
+                },
+            });
+
+        } else if (data === 'confirm_doctor') {
+            // Удаляем все данные о пациенте
+            await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
+
+            // Создаем запись о враче
+            await db.query('INSERT INTO doctors (chat_id) VALUES ($1) ON CONFLICT (chat_id) DO NOTHING', [chatId]);
+
+            await bot.editMessageText(`Записал, ваша роль: Врач. Все данные как пациента были удалены.`, {
+                chat_id: chatId,
+                message_id: messageId,
+            });
+
+        } else if (data === 'cancel_doctor') {
+            await bot.editMessageText('Выбор роли отменен. Пожалуйста, выберите роль заново.', {
+                chat_id: chatId,
+                message_id: messageId,
+            });
+
+            // Возвращаем пользователя к выбору роли
+            const options = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {text: 'Врач', callback_data: 'role_doctor'},
+                            {text: 'Пациент', callback_data: 'role_patient'},
+                        ],
+                    ],
+                },
+            };
+            bot.sendMessage(chatId, 'Выберите вашу роль:', options);
+        }
+
+else if (data === 'cancel_doctor') {
+            await bot.editMessageText('Отмена выбора роли врача.', {
+                chat_id: chatId,
+                message_id: messageId,
+            });
         } else if (data === 'language_russian' || data === 'language_english') {
             const language = data === 'language_russian' ? 'Русский' : 'English';
 
