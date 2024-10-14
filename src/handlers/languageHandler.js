@@ -11,7 +11,7 @@ module.exports = async function handleLanguageSelection(bot, callbackQuery) {
         if (data === 'language_russian') {
             // Обновляем язык в базе данных
             languageChoice = 'language_russian';
-            await db.query('UPDATE users SET language = $1 WHERE chat_id = $2', ['Русский', chatId]);
+            await db.query('UPDATE users SET language = $1, step = $2 WHERE chat_id = $3', ['Русский', 'role_choice', chatId]);
 
             await bot.editMessageText(`Записал, ваш язык: Русский.`, {
                 chat_id: chatId,
