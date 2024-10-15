@@ -4,6 +4,7 @@ const handleStartCommand = require('./commands/start');
 const handleLanguageSelection = require('./handlers/languageHandler');
 const handleCallbackQueryRussian = require('./handlers/callbackHandlerRussian');
 const handleCallbackQueryEnglish = require('./handlers/callbackHandlerEnglish');
+const handleMyProfileCommand = require('./commands/myProfile');
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -11,6 +12,10 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 // Обработчик команды /start
 bot.onText(/\/start/, (msg) => {
     handleStartCommand(bot, msg); // Обрабатываем команду /start
+});
+
+bot.onText(/\/myProfile/, (msg) => {
+    handleMyProfileCommand(bot, msg);
 });
 
 // Хранилище для языковых предпочтений пользователей

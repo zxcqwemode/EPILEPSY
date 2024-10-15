@@ -201,10 +201,11 @@ module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
                 message_id: messageId,
             });
 
-            const finalMessage = `Great 👍! Setup is complete.\nI will remind you after ${hour}:00 according to the schedule.\n
+                const finalMessage = `Great 👍! Your profile setup is complete!\nI will remind you after ${hour}:00 according to the schedule.\n
 
-If you want to change the settings, use the /start command.`;
-            await bot.sendMessage(chatId, finalMessage);
+If you want to change the settings, use the /start command.\nYour personal profile is now available!\nTo access your profile, use the /myProfile command.`;
+
+                await bot.sendMessage(chatId, finalMessage);
 
             // Confirmation of doctor role selection
         } else if (data === 'role_doctor') {

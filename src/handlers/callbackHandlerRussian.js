@@ -1,6 +1,5 @@
 const db = require('../config/db');
 
-
 module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
     const chatId = callbackQuery.message.chat.id;
     const messageId = callbackQuery.message.message_id;
@@ -202,10 +201,9 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                     chat_id: chatId,
                     message_id: messageId,
                 });
+                const finalMessage = `Отлично👍, с настройкой вашего профиля закончили!\nЯ напомню вам о себе после ${hour}:00 по расписанию.\n
 
-                const finalMessage = `Отлично👍, с настройкой закончили!\nЯ напомню вам о себе после ${hour}:00 по расписанию.\n
-
-Если вам захочется сменить настройки, выполните команду /start.`;
+Если вам захочется сменить настройки, выполните команду /start.\nТеперь вам доступен личный профиль!\nДля перехода в личный профиль выполните команду /myProfile`;
                 await bot.sendMessage(chatId, finalMessage);
 
 
