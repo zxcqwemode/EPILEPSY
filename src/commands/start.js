@@ -5,6 +5,7 @@ module.exports = async function handleStartCommand(bot, msg) {
 
     try {
         // Проверка наличия таблиц users и doctors
+        console.log("Проверяем наличие таблицы 'users'");
         const checkUsersTable = `
             SELECT EXISTS (
                 SELECT FROM pg_tables 
@@ -32,11 +33,16 @@ module.exports = async function handleStartCommand(bot, msg) {
                     notification_period VARCHAR(50),
                     notification_hour_msk INTEGER,
                     notification_hour_gmt INTEGER,
-                    step VARCHAR(50)
+                    step VARCHAR(50),
+                    notification_text VARCHAR(50)
                 );
             `;
-            await db.query(createUsersTable);
-            console.log("Таблица 'users' была создана.");
+            try {
+                await db.query(createUsersTable);
+                console.log("Таблица 'users' была создана.");
+            } catch (error) {
+                console.error("Ошибка при создании таблицы 'users':", error);
+            }
         }
 
         if (!doctorsTableExists.rows[0].exists) {
@@ -46,8 +52,12 @@ module.exports = async function handleStartCommand(bot, msg) {
                     language VARCHAR(50)
                 );
             `;
-            await db.query(createDoctorsTable);
-            console.log("Таблица 'doctors' была создана.");
+            try {
+                await db.query(createDoctorsTable);
+                console.log("Таблица 'doctors' была создана.");
+            } catch (error) {
+                console.error("Ошибка при создании таблицы 'doctors':", error);
+            }
         }
 
         // Проверяем, существует ли пользователь
@@ -56,7 +66,6 @@ module.exports = async function handleStartCommand(bot, msg) {
 
         // Если пользователь не существует, добавляем его в базу данных
         if (userCheck.rows.length === 0 && doctorCheck.rows.length === 0) {
-            // Если пользователя нет, добавляем его в таблицу users
             await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)', [chatId, 'language_choice']);
             console.log(`Пользователь с chat_id: ${chatId} добавлен в базу данных.`);
         } else {

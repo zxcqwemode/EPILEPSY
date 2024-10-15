@@ -9,10 +9,12 @@ const callbackMyProfileRussian = require('./handlers/myProfileRussian'); // Им
 const callbackMyProfileEnglish = require('./handlers/myProfileEnglish'); // Импортируйте ваш обработчик профиля на английском
 const informationRussian = require('./cabinet/informationRussian'); // Импортируйте обработчик информации о заболевании
 const informationEnglish = require('./cabinet/informationEnglish'); // Импортируйте обработчик информации о заболевании на английском
+const scheduleNotifications = require('./cabinet/notifications'); // Импортируем функцию
+
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-
+scheduleNotifications(bot);
 // Обработчик команды /start
 bot.onText(/\/start/, (msg) => {
     handleStartCommand(bot, msg); // Обрабатываем команду /start
@@ -21,6 +23,8 @@ bot.onText(/\/start/, (msg) => {
 bot.onText(/\/myProfile/, (msg) => {
     handleMyProfileCommand(bot, msg);
 });
+
+
 
 // Хранилище для языковых предпочтений пользователей
 const userLanguages = {}; // Словарь для хранения языков пользователей
@@ -65,6 +69,7 @@ bot.on('callback_query', async (callbackQuery) => {
             await handleCallbackQueryRussian(bot, callbackQuery);
         }
     }
+
 });
 
 module.exports = bot;
