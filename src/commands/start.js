@@ -42,7 +42,8 @@ module.exports = async function handleStartCommand(bot, msg) {
         if (!doctorsTableExists.rows[0].exists) {
             const createDoctorsTable = `
                 CREATE TABLE doctors (
-                    chat_id BIGINT PRIMARY KEY
+                    chat_id BIGINT PRIMARY KEY,
+                    language VARCHAR(50)
                 );
             `;
             await db.query(createDoctorsTable);
@@ -56,7 +57,7 @@ module.exports = async function handleStartCommand(bot, msg) {
         // Если пользователь не существует, добавляем его в базу данных
         if (userCheck.rows.length === 0 && doctorCheck.rows.length === 0) {
             // Если пользователя нет, добавляем его в таблицу users
-            await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)', [chatId, 'language']);
+            await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)', [chatId, 'language_choice']);
             console.log(`Пользователь с chat_id: ${chatId} добавлен в базу данных.`);
         } else {
             console.log(`Пользователь с chat_id: ${chatId} уже существует в базе данных.`);

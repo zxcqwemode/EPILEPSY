@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const informationEnglish = require('../cabinet/informationEnglish'); // Импортируем обработчик информации о заболевании на английском
 
 module.exports = async function callbackMyProfileEnglish(bot, msg) {
     const chatId = msg.chat.id;
@@ -16,18 +17,41 @@ module.exports = async function callbackMyProfileEnglish(bot, msg) {
 
         // Формирование сообщения с данными профиля
         const profileMessage = `
-Your profile:
+Welcome to your personal account!
+Your Profile:
 - ID: ${chat_id}
 - Gender: ${gender || 'Not specified'}
-- Time zone (GMT): ${timezone_gmt}
+- Timezone (GMT): ${timezone_gmt}
 - Notification period: ${notification_period || 'Not specified'}
-- Notification hour (MSK): ${notification_hour_msk || 'Not specified'}
+- Notification hour (Moscow): ${notification_hour_msk || 'Not specified'}
         `;
+
+        // Определяем кнопки для личного кабинета
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: 'Information about the disease', callback_data: 'info_about_disease' },
+                        { text: 'Notifications', callback_data: 'notifications' },
+                    ],
+                    [
+                        { text: 'Seizure Calendar', callback_data: 'seizure_calendar' },
+                        { text: 'Contact Doctor', callback_data: 'contact_doctor' },
+                    ],
+                    [
+                        { text: 'Make a Record', callback_data: 'make_record' },
+                        { text: 'Seizure', callback_data: 'seizure' },
+                    ],
+                ],
+            },
+        };
 
         // Отправка профиля пользователю
         await bot.sendMessage(chatId, profileMessage);
+        // Отправка кнопок для управления личным кабинетом
+        await bot.sendMessage(chatId, 'Choose an action:', options);
     } catch (err) {
-        console.error('Error processing myProfileEnglish command:', err);
+        console.error('Error while processing the myProfileEnglish command:', err);
         await bot.sendMessage(chatId, 'An error occurred while retrieving your profile. Please try again later.');
     }
 };

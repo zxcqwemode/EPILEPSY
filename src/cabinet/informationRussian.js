@@ -1,8 +1,7 @@
-const db = require('../config/db');
 
 module.exports = async function informationRussian(bot, chatId) {
     // Информация о заболевании
-    const diseaseInfoMessage = `
+    const informationMessage= `
 Эпилепсия — это неврологическое расстройство, характеризующееся повторяющимися приступами, вызванными аномальной электрической активностью в мозге. Признаки могут варьироваться от кратковременной потери сознания до сильных судорог.
 
 Важно вести дневник приступов, чтобы выявить триггеры и улучшить лечение.
@@ -20,5 +19,5 @@ module.exports = async function informationRussian(bot, chatId) {
     };
 
     // Отправляем сообщение с информацией о заболевании и кнопкой "Назад"
-    await bot.sendMessage(chatId, diseaseInfoMessage, backOptions);
+    await bot.sendMessage(chatId, informationMessage, backOptions);
 };

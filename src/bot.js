@@ -5,8 +5,10 @@ const handleLanguageSelection = require('./handlers/languageHandler');
 const handleCallbackQueryRussian = require('./handlers/callbackHandlerRussian');
 const handleCallbackQueryEnglish = require('./handlers/callbackHandlerEnglish');
 const handleMyProfileCommand = require('./commands/myProfile');
-const callbackMyProfileRussian = require('./handlers/myProfileRussian'); // Импортируйте ваш обработчик профиля
+const callbackMyProfileRussian = require('./handlers/myProfileRussian'); // Импортируйте ваш обработчик профиля на русском
+const callbackMyProfileEnglish = require('./handlers/myProfileEnglish'); // Импортируйте ваш обработчик профиля на английском
 const informationRussian = require('./cabinet/informationRussian'); // Импортируйте обработчик информации о заболевании
+const informationEnglish = require('./cabinet/informationEnglish'); // Импортируйте обработчик информации о заболевании на английском
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -38,10 +40,20 @@ bot.on('callback_query', async (callbackQuery) => {
 
     } else if (data === 'info_about_disease') {
         // Обработчик для получения информации о заболевании
-        await informationRussian(bot, chatId); // Отправляем информацию о заболевании
+        const userLanguage = userLanguages[chatId] || 'Русский'; // По умолчанию Русский
+        if (userLanguage === 'English') {
+            await informationEnglish(bot, chatId); // Отправляем информацию о заболевании на английском
+        } else {
+            await informationRussian(bot, chatId); // Отправляем информацию о заболевании на русском
+        }
     } else if (data === 'back_to_profile') {
         // Возвращаем пользователя к профилю
-        await callbackMyProfileRussian(bot, { chat: { id: chatId } }); // Возвращаемся в личный кабинет
+        const userLanguage = userLanguages[chatId] || 'Русский'; // Получаем язык пользователя
+        if (userLanguage === 'English') {
+            await callbackMyProfileEnglish(bot, { chat: { id: chatId } }); // Возвращаемся в личный кабинет на английском
+        } else {
+            await callbackMyProfileRussian(bot, { chat: { id: chatId } }); // Возвращаемся в личный кабинет на русском
+        }
     } else {
         // Получаем язык пользователя из хранилища
         const userLanguage = userLanguages[chatId] || 'Русский'; // По умолчанию Русский
