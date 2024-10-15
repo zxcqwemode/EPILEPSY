@@ -5,6 +5,8 @@ const handleLanguageSelection = require('./handlers/languageHandler');
 const handleCallbackQueryRussian = require('./handlers/callbackHandlerRussian');
 const handleCallbackQueryEnglish = require('./handlers/callbackHandlerEnglish');
 const handleMyProfileCommand = require('./commands/myProfile');
+const callbackMyProfileRussian = require('./handlers/myProfileRussian'); // Импортируйте ваш обработчик профиля
+const informationRussian = require('./cabinet/informationRussian'); // Импортируйте обработчик информации о заболевании
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -34,6 +36,12 @@ bot.on('callback_query', async (callbackQuery) => {
         // Сохраняем выбранный язык в словаре
         userLanguages[chatId] = data === 'language_russian' ? 'Русский' : 'English';
 
+    } else if (data === 'info_about_disease') {
+        // Обработчик для получения информации о заболевании
+        await informationRussian(bot, chatId); // Отправляем информацию о заболевании
+    } else if (data === 'back_to_profile') {
+        // Возвращаем пользователя к профилю
+        await callbackMyProfileRussian(bot, { chat: { id: chatId } }); // Возвращаемся в личный кабинет
     } else {
         // Получаем язык пользователя из хранилища
         const userLanguage = userLanguages[chatId] || 'Русский'; // По умолчанию Русский
