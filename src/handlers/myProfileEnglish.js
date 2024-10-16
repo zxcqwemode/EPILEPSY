@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const informationEnglish = require('../cabinet/informationEnglish'); // Импортируем обработчик информации о заболевании на английском
+const informationEnglish = require('../cabinet/informationHandler/informationEnglish'); // Импортируем обработчик информации о заболевании на английском
 
 module.exports = async function callbackMyProfileEnglish(bot, msg) {
     const chatId = msg.chat.id;

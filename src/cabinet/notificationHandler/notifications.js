@@ -1,4 +1,4 @@
-const db = require('../config/db');
+const db = require('../../config/db');
 const cron = require('node-cron');
 
 // Функция для отправки уведомления

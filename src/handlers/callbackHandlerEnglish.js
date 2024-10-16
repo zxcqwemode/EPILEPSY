@@ -189,7 +189,7 @@ module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
             // Message with buttons for selecting time and changing period
             bot.sendMessage(chatId, 'Choose the exact time for notifications:', hourOptions);
 
-        } else if (data.startsWith('hour_')) {
+        } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
             const hour = data.split('_')[1];
 
             // Save the chosen hour

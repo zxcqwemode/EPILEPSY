@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const informationRussian = require('../cabinet/informationRussian'); // Импортируем новый файл
+const informationRussian = require('../cabinet/informationHandler/informationRussian'); // Импортируем новый файл
 
 module.exports = async function callbackMyProfileRussian(bot, msg) {
     const chatId = msg.chat.id;

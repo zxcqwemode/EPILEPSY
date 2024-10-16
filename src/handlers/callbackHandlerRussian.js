@@ -189,7 +189,7 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 // Сообщение с кнопками выбора часа и изменения периода
                 bot.sendMessage(chatId, 'Выберите точное время для уведомлений:', hourOptions);
 
-            } else if (data.startsWith('hour_')) {
+            } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
                 const hour = data.split('_')[1];
 
                 // Сохраняем выбранный час
