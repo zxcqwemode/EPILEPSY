@@ -23,7 +23,7 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
 - Пол: ${gender || 'Не указан'}
 - Часовой пояс (GMT): ${timezone_gmt}
 - Период уведомлений: ${notification_period || 'Не указан'}
-- Час уведомлений (МСК): ${notification_hour_msk || 'Не указан'}
+- Час уведомлений: ${notification_hour_msk || 'Не указан'}
         `;
 
         // Определяем кнопки для личного кабинета
@@ -36,7 +36,7 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
                     ],
                     [
                         { text: 'Календарь приступов', callback_data: 'seizure_calendar' },
-                        { text: 'Связь с врачом', callback_data: 'contact_doctor' },
+                        { text: 'Связь с врачом', callback_data: 'doctor_connection' },
                     ],
                     [
                         { text: 'Сделать запись', callback_data: 'make_record' },

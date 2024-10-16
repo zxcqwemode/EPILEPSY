@@ -192,12 +192,12 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
                 const hour = data.split('_')[1];
 
-                // Сохраняем выбранный час
-                await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hour, chatId]);
-
-                // Получаем часовой пояс пользователя для расчета времени по GMT
                 const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
                 const timezoneOffsetGmt = user.rows[0].timezone_gmt;
+
+                const hourMsk= hour - timezoneOffsetGmt +3;
+                // Сохраняем выбранный час
+                await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hourMsk, chatId]);
 
                 // Рассчитываем время в GMT
                 const gmtHour = (parseInt(hour) - timezoneOffsetGmt + 24) % 24;

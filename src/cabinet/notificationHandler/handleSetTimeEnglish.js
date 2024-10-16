@@ -38,13 +38,22 @@ module.exports = async function handleSetTimeEnglish(bot, chatId, callbackData) 
         const hourData = callbackQuery.data;
         if (hourData.startsWith('hour_') && hourData.endsWith('_edit')) {
             const hour = hourData.split('_')[1];
-            const notificationHourGmt = parseInt(hour); // Здесь может потребоваться обработка часового пояса
+
+
+
+            // Получаем timezone_gmt из базы данных
+            const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
+            const timezoneGmt = user.rows[0]?.timezone_gmt || 0; // Убедимся, что значение существует, если нет — ставим 0
+
+            // Рассчитываем значения для notification_hour_gmt и notification_hour_msk
+            const notificationHourGmt = (hour - timezoneGmt + 24) % 24; // Приводим к 24-часовому формату для GMT
+            const notificationHourMsk = hour - timezoneGmt + 3; // МСК = GMT + 3
 
             // Сохраняем новое время в базе данных
-            await db.query('UPDATE users SET notification_hour_gmt = $1 WHERE chat_id = $2', [notificationHourGmt, chatId]);
+            await db.query('UPDATE users SET notification_hour_gmt = $1, notification_hour_msk = $2 WHERE chat_id = $3', [notificationHourGmt, notificationHourMsk, chatId]);
 
             // Отправляем сообщение с подтверждением
-            const confirmationMessage = `Notification time updated to: ${hour}:00 GMT. To return to your profile, click the "Return" button.`;
+            const confirmationMessage = `Notification time updated to: ${notificationHourMsk}:00. To return to your profile, click the "Return" button.`;
 
             const options = {
                 reply_markup: {

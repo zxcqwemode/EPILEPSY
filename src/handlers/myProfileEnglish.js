@@ -23,7 +23,7 @@ Your Profile:
 - Gender: ${gender || 'Not specified'}
 - Timezone (GMT): ${timezone_gmt}
 - Notification period: ${notification_period || 'Not specified'}
-- Notification hour (Moscow): ${notification_hour_msk || 'Not specified'}
+- Notification hour: ${notification_hour_msk || 'Not specified'}
         `;
 
         // Определяем кнопки для личного кабинета

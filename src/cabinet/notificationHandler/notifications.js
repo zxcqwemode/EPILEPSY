@@ -9,10 +9,12 @@ async function sendNotification(bot, chatId, message) {
 // Функция для планирования уведомлений
 async function scheduleNotifications(bot) {
     // Запрашиваем всех пользователей из базы данных
-    const users = await db.query('SELECT chat_id, notification_hour_gmt, language, notification_text FROM users WHERE notification_hour_gmt IS NOT NULL');
+    const users = await db.query(
+        'SELECT chat_id, language, notification_text, notification_hour_msk FROM users WHERE notification_hour_msk IS NOT NULL'
+    );
 
     users.rows.forEach(user => {
-        const { chat_id, notification_hour_gmt, language, notification_text } = user;
+        const { chat_id, language, notification_text, notification_hour_msk } = user;
 
         // Определяем текст уведомления
         let message;
@@ -28,14 +30,16 @@ async function scheduleNotifications(bot) {
             }
         }
 
-        // Запускаем задачу cron на определенное время каждый день
-        const cronTime = `0 ${notification_hour_gmt+3} * * *`; // Каждый день в указанное время
+        // Рассчитываем время для cron на основе notification_hour_msk
+        const userHour = notification_hour_msk; // Используем notification_hour_msk
+        const cronTime = `0 ${userHour} * * *`; // Каждый день в указанное время
 
+        // Запускаем задачу cron на определенное время каждый день
         cron.schedule(cronTime, async () => {
             await sendNotification(bot, chat_id, message);
         });
 
-        console.log(`Уведомление запланировано для ${chat_id} на ${notification_hour_gmt}:00 GMT.`);
+        console.log(`Уведомление запланировано для ${chat_id} на ${userHour}:00 по МСК.`);
     });
 }
 

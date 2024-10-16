@@ -190,17 +190,17 @@ module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
             bot.sendMessage(chatId, 'Choose the exact time for notifications:', hourOptions);
 
         } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
-            const hour = data.split('_')[1];
+                const hour = data.split('_')[1];
 
-            // Save the chosen hour
-            await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hour, chatId]);
+                const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
+                const timezoneOffsetGmt = user.rows[0].timezone_gmt;
 
-            // Get the user's time zone for calculating time in GMT
-            const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
-            const timezoneOffsetGmt = user.rows[0].timezone_gmt;
+                const hourMsk= hour - timezoneOffsetGmt +3;
+                // Сохраняем выбранный час
+                await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hourMsk, chatId]);
 
-            // Calculate time in GMT
-            const gmtHour = (parseInt(hour) - timezoneOffsetGmt + 24) % 24;
+                // Рассчитываем время в GMT
+                const gmtHour = (parseInt(hour) - timezoneOffsetGmt + 24) % 24;
 
             // Save the time in GMT format
             await db.query('UPDATE users SET notification_hour_gmt = $1 WHERE chat_id = $2', [gmtHour, chatId]);
