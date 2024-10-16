@@ -75,7 +75,8 @@ const initializeDatabase = async () => {
                 notification_hour_gmt INTEGER,
                 step VARCHAR(50),
                 notification_text VARCHAR(50),
-                doctor_key VARCHAR(255)
+                doctor_key VARCHAR(255),
+                key_valid BOOLEAN DEFAULT FALSE
             );
         `;
         await db.query(createUsersTable);
@@ -88,6 +89,7 @@ const initializeDatabase = async () => {
                 chat_id BIGINT PRIMARY KEY,
                 language VARCHAR(50),
                 doctor_key VARCHAR(50)
+           
             );
         `;
         await db.query(createDoctorsTable);
