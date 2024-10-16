@@ -36,7 +36,7 @@ Your Profile:
                     ],
                     [
                         { text: 'Seizure Calendar', callback_data: 'seizure_calendar' },
-                        { text: 'Contact Doctor', callback_data: 'contact_doctor' },
+                        { text: 'Contact Doctor', callback_data: 'doctor_connection' },
                     ],
                     [
                         { text: 'Make a Record', callback_data: 'make_record' },

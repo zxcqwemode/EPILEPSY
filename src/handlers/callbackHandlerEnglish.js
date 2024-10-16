@@ -234,26 +234,51 @@ If you want to change the settings, use the /start command.\nYour personal profi
             // Confirmation of deletion of patient data and selection of the role of doctor
         } else if (data === 'confirm_doctor') {
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
-            await db.query('INSERT INTO doctors (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, 'English']);
 
-            await bot.editMessageText(`Your role: Doctor has been recorded. All patient data has been deleted.`, {
+            // Запрашиваем врача из базы данных
+            const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
+
+            let doctorKey;
+
+            // Проверяем, есть ли врач и его ключ
+            if (doctorCheck.rows.length === 0) {
+                // Если врача нет, генерируем уникальный ключ
+                const generateDoctorKey = () => {
+                    return Math.random().toString(36).substring(2, 10); // Генерация случайной строки из 8 символов
+                };
+
+                // Генерация уникального ключа для врача
+                doctorKey = generateDoctorKey();
+
+                await db.query(
+                    'INSERT INTO doctors (chat_id, language, doctor_key) VALUES ($1, $2, $3)',
+                    [chatId, 'English', doctorKey]
+                );
+            } else {
+                // Если врач существует, используем его ключ
+                doctorKey = doctorCheck.rows[0].doctor_key;
+            }
+
+            await bot.editMessageText(`Recorded, your role: Doctor. All patient data has been deleted.`, {
                 chat_id: chatId,
                 message_id: messageId,
             });
 
-            // Show the "List of Patients" button
+            // Показываем кнопку "Список пациентов"
             const options = {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: 'List of Patients', callback_data: 'patient_list_page_1' }],
+                        [{ text: 'Patient List', callback_data: 'patient_list_page_1' }],
                     ],
                 },
             };
-            bot.sendMessage(chatId, 'Welcome to the doctor\'s office!', options);
 
-            // Cancellation of doctor role selection
-        } else if (data === 'cancel_doctor') {
-            await bot.editMessageText('Role selection canceled. Please select your role again.', {
+            await bot.sendMessage(chatId, `Your unique key: ${doctorKey}. Please share it with patients for connection.`);
+            await bot.sendMessage(chatId, 'Welcome to the doctor\'s cabinet!', options);
+
+
+    } else if (data === 'cancel_doctor') {
+            await bot.editMessageText('Role selection canceled. Please choose your role again.', {
                 chat_id: chatId,
                 message_id: messageId,
             });
@@ -268,43 +293,60 @@ If you want to change the settings, use the /start command.\nYour personal profi
                     ],
                 },
             };
-            bot.sendMessage(chatId, 'Please select your role:', options);
+            await bot.sendMessage(chatId, 'Please choose your role:', options);
 
-            // Displaying the list of patients
         } else if (data.startsWith('patient_list_page_')) {
             const page = parseInt(data.split('_').pop(), 10);
-            const patients = [];
+            const doctorResult = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
+            const doctorKey = doctorResult.rows[0]?.doctor_key;
 
-            // Generating patient names for the current page
-            for (let i = 1; i <= 9; i++) {
-                const patientIndex = i + (page - 1) * 9; // Calculate the actual patient index
-                patients.push({ text: `Patient ${patientIndex}`, callback_data: `patient_${patientIndex}` });
+            if (!doctorKey) {
+                await bot.sendMessage(chatId, "Error: Doctor key not found.");
+                return;
             }
 
-            const patientRows = [];
-            for (let i = 0; i < patients.length; i += 3) {
-                patientRows.push(patients.slice(i, i + 3));
-            }
+            // Запрашиваем пациентов из базы данных
+            const result = await db.query('SELECT * FROM users WHERE doctor_key = $1', [doctorKey]); // Получаем список пациентов
+            const patients = result.rows;
 
-            // Adding navigation buttons
-            const navigationButtons = [];
-            if (page > 1) {
-                // The "Left" button is active only if on the second or third page
-                navigationButtons.push({ text: '⬅️ Left', callback_data: `patient_list_page_${page - 1}` });
+            let patientButtons = [];
+
+            // Проверяем, есть ли пациенты
+            if (patients.length > 0) {
+                // Генерация кнопок для пациентов
+                for (let i = 0; i < patients.length; i++) {
+                    const patientIndex = i + 1;
+                    patientButtons.push({ text: `Patient ${patientIndex}`, callback_data: `patient_${patientIndex}` });
+                }
+
+                // Если у врача меньше 9 пациентов, добавляем пустые кнопки
+                for (let i = patients.length; i < 9; i++) {
+                    patientButtons.push({ text: ' ', callback_data: 'no_action' }); // Заглушка
+                }
             } else {
-                // The "Left" button is inactive on the first page
-                navigationButtons.push({ text: '⬅️ Left', callback_data: 'no_action' }); // Placeholder
+                // Если нет пациентов, создаем пустые кнопки
+                for (let i = 0; i < 9; i++) {
+                    patientButtons.push({ text: 'No patients', callback_data: 'no_action' });
+                }
             }
 
-            navigationButtons.push({ text: 'Back to Menu', callback_data: 'doctor_menu' });
+            // Формируем строки для кнопок
+            const patientRows = [];
+            for (let i = 0; i < patientButtons.length; i += 3) {
+                patientRows.push(patientButtons.slice(i, i + 3));
+            }
 
-            // The "Right" button is always available
-            navigationButtons.push({ text: 'Right ➡️', callback_data: `patient_list_page_${page + 1}` });
+            // Добавление кнопок навигации
+            const navigationButtons = [
+                { text: '⬅️ Left', callback_data: page > 1 ? `patient_list_page_${page - 1}` : 'no_action' },
+                { text: 'Return to menu', callback_data: 'doctor_menu' },
+                { text: 'Right ➡️', callback_data: `patient_list_page_${page + 1}` },
+            ];
 
-            // Adding navigation buttons to the array
+            // Добавляем навигационные кнопки в массив
             patientRows.push(navigationButtons);
 
-            await bot.editMessageText(`Here is your patient list:`, {
+            await bot.editMessageText(`Here is the list of your patients:`, {
                 chat_id: chatId,
                 message_id: messageId,
                 reply_markup: {
@@ -312,7 +354,6 @@ If you want to change the settings, use the /start command.\nYour personal profi
                 },
             });
 
-            // Handling the selection of a patient
         } else if (data.startsWith('patient_')) {
             const patientIndex = data.split('_')[1];
             await bot.editMessageText(`Patient: Patient ${patientIndex}`, {
@@ -321,59 +362,21 @@ If you want to change the settings, use the /start command.\nYour personal profi
                 reply_markup: {
                     inline_keyboard: [
                         [
-                            { text: 'Back', callback_data: `patient_list_page_${1}` }, // Return to the first page of the patient list
-                            { text: 'Send Patient History', callback_data: `send_history_${patientIndex}` },
+                            { text: 'Go back', callback_data: `patient_list_page_${1}` }, // Возвращаемся на первую страницу списка пациентов
+                            { text: 'Send message history with patient', callback_data: `send_history_${patientIndex}` },
                         ],
                     ],
                 },
             });
-
-            // Return to the doctor's menu
         } else if (data === 'doctor_menu') {
             const options = {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: 'List of Patients', callback_data: 'patient_list_page_1' }],
+                        [{ text: 'Patient List', callback_data: 'patient_list_page_1' }],
                     ],
                 },
             };
-            bot.sendMessage(chatId, 'You returned to the doctor\'s menu.', options);
-
-            // Handling the sending of patient history (placeholder logic)
-        } else if (data.startsWith('send_history_')) {
-            const patientIndex = data.split('_')[2];
-            await bot.sendMessage(chatId, `Patient ${patientIndex} history sent.`); // This is a placeholder; actual logic should be implemented
-
-        } else if (data === 'no_action') {
-            // Handling the press of the "⬅️ Left" button on the first page
-            await bot.sendMessage(chatId, 'You are on page 1 of the patients list.');
-
-            // Return to the list of patients on the first page
-            const patients = [];
-
-            // Generate names for the first page
-            for (let i = 1; i <= 9; i++) {
-                patients.push({ text: `Patient ${i}`, callback_data: `patient_${i}` });
-            }
-
-            const patientRows = [];
-            for (let i = 0; i < patients.length; i += 3) {
-                patientRows.push(patients.slice(i, i + 3));
-            }
-
-            const navigationButtons = [
-                { text: '⬅️ Left', callback_data: 'no_action' }, // Placeholder
-                { text: 'Back to Menu', callback_data: 'doctor_menu' },
-                { text: 'Right ➡️', callback_data: 'patient_list_page_2' }, // Go to the second page
-            ];
-
-            patientRows.push(navigationButtons);
-
-            await bot.sendMessage(chatId, `Here is your patient list:`, {
-                reply_markup: {
-                    inline_keyboard: patientRows,
-                },
-            });
+            await bot.sendMessage(chatId, 'You returned to the doctor\'s menu.', options);
         }
 
     } catch (err) {
