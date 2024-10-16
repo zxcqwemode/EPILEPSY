@@ -194,7 +194,6 @@ initializeDatabase().then(() => {
             } else {
                 await handleSetTimeRussian(bot, chatId, data); // Передаем callbackData
             }
-
         }
         // Добавляем обработчики для связи с врачом
         else if (data === 'doctor_connection') {

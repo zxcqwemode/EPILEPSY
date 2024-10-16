@@ -48,7 +48,7 @@ module.exports = async function handleSetTimeRussian(bot, chatId, callbackData) 
             await db.query('UPDATE users SET notification_hour_gmt = $1, notification_hour_msk = $2 WHERE chat_id = $3', [notificationHourGmt, notificationHourMsk, chatId]);
 
             // Отправляем сообщение с подтверждением
-            const confirmationMessage = `Время уведомления обновлено на: ${notificationHourMsk}:00 по МСК. Чтобы вернуться в профиль, нажмите на кнопку "Вернуться".`;
+            const confirmationMessage = `Время уведомления обновлено на: ${notificationHourMsk+timezoneGmt-3}:00 по вашему времени. Чтобы вернуться в профиль, нажмите на кнопку "Вернуться".`;
 
             const options = {
                 reply_markup: {

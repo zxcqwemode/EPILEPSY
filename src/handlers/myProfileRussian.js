@@ -23,7 +23,7 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
 - Пол: ${gender || 'Не указан'}
 - Часовой пояс (GMT): ${timezone_gmt}
 - Период уведомлений: ${notification_period || 'Не указан'}
-- Час уведомлений: ${notification_hour_msk || 'Не указан'}
+- Час уведомлений: ${notification_hour_msk+timezone_gmt-3 || 'Не указан'}
         `;
 
         // Определяем кнопки для личного кабинета
