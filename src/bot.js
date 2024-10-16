@@ -16,11 +16,14 @@ const handleNotificationsRussian = require('./cabinet/notificationHandler/handle
 const handleChangeNotificationRussian = require('./cabinet/notificationHandler/handleChangeNotificationRussian');
 const handleChangeTimeRussian = require('./cabinet/notificationHandler/handleChangeTimeRussian');
 const handleSetTimeRussian = require('./cabinet/notificationHandler/handleSetTimeRussian');
+const handleChangeTextRussian = require('./cabinet/notificationHandler/handleChangeTextRussian');
 
 const handleNotificationsEnglish = require('./cabinet/notificationHandler/handleNotificationsEnglish');
 const handleChangeNotificationEnglish = require('./cabinet/notificationHandler/handleChangeNotificationEnglish');
 const handleChangeTimeEnglish = require('./cabinet/notificationHandler/handleChangeTimeEnglish');
 const handleSetTimeEnglish = require('./cabinet/notificationHandler/handleSetTimeEnglish');
+const handleChangeTextEnglish = require('./cabinet/notificationHandler/handleChangeTextEnglish');
+
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -54,6 +57,7 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await informationRussian(bot, chatId);
         }
+
     } else if (data === 'back_to_profile') {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
@@ -61,6 +65,7 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await callbackMyProfileRussian(bot, { chat: { id: chatId } });
         }
+
     } else if (data === 'notifications') {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
@@ -68,6 +73,7 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await handleNotificationsRussian(bot, chatId);
         }
+
     } else if (data === 'change_notification') {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
@@ -75,6 +81,7 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await handleChangeNotificationRussian(bot, chatId);
         }
+
     } else if (data === 'change_time') {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
@@ -82,6 +89,15 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await handleChangeTimeRussian(bot, chatId);
         }
+
+    } else if (data === 'change_text') {
+        const userLanguage = userLanguages[chatId] || 'Русский';
+        if (userLanguage === 'English') {
+            await handleChangeTextEnglish(bot, chatId);
+        } else {
+            await handleChangeTextRussian(bot, chatId);
+        }
+
     } else if (data.startsWith('time_morning_edit') || data.startsWith('time_afternoon_edit') || data.startsWith('time_evening_edit')) {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
@@ -89,6 +105,7 @@ bot.on('callback_query', async (callbackQuery) => {
         } else {
             await handleSetTimeRussian(bot, chatId, data); // Передаем callbackData
         }
+
     } else {
         const userLanguage = userLanguages[chatId] || 'Русский';
         if (userLanguage === 'English') {
