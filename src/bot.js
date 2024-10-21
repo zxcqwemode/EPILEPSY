@@ -36,7 +36,10 @@ const handleSendMessageEnglish = require('./cabinet/doctorConnection/sendMessage
 const handleViewMessagesEnglish = require('./cabinet/doctorConnection/viewMessagesEnglish');
 
 const {seizureCalendarRussian,
-    handleChangeMonthRussian}= require('./cabinet/calendar/seizureCalendarRussian');
+    handleChangeMonthRussian,
+    handleDayPressRussian,
+    recordSeizureRussian,
+    startRecording}= require('./cabinet/calendar/seizureCalendarRussian');
 const seizureCalendarEnglish = require('./cabinet/calendar/seizureCalendarEnglish');
 
 // Функция для проверки и создания таблиц
@@ -138,7 +141,7 @@ initializeDatabase().then(() => {
             }
         }
 
-// Обработка команды /seizure_calendar
+        // Обработка команды /seizure_calendar
         else if (data === 'seizure_calendar') {
             const userLanguage = userLanguages[chatId] || 'Русский';
 
@@ -152,6 +155,7 @@ initializeDatabase().then(() => {
             // Сохраняем идентификатор сообщения
             bot.userMessageIds[chatId] = message.message_id;
 
+            // Отправляем календарь в зависимости от языка
             if (userLanguage === 'English') {
                 await seizureCalendarEnglish(bot, chatId);
             } else {
@@ -159,37 +163,54 @@ initializeDatabase().then(() => {
             }
         }
 
-        // Обработка команды 'seizure_calendar'
-        else if (data === 'seizure_calendar') {
+
+        // Обработка нажатия на день в календаре
+        else if (data.startsWith('calendar_')) {
+            const [_, day, monthOffset] = data.split('_');
             const userLanguage = userLanguages[chatId] || 'Русский';
-            let message;
 
-            // Вызов функции для отправки календаря в зависимости от языка
             if (userLanguage === 'English') {
-                message = await seizureCalendarEnglish(bot, chatId); // Сохраняем объект сообщения
+                await handleDayPressEnglish(bot, chatId, day, monthOffset);
             } else {
-                message = await seizureCalendarRussian(bot, chatId); // Сохраняем объект сообщения
+                await handleDayPressRussian(bot, chatId, day, monthOffset);
             }
-
-            // Сохраняем идентификатор сообщения для редактирования
-            bot.userMessageIds[chatId] = message.message_id;
         }
 
         // Обработка изменения месяца
         else if (data.startsWith('change_month_')) {
             const monthOffset = parseInt(data.split('_')[2]);
             const userLanguage = userLanguages[chatId] || 'Русский';
-            const messageId = bot.userMessageIds[chatId]; // Получаем сохраненный message_id
+            const messageId = bot.userMessageIds[chatId];
 
-            // Проверка языка и вызов соответствующей функции для изменения месяца
             if (userLanguage === 'English') {
-                await handleChangeMonthEnglish(bot, chatId, monthOffset, messageId); // Передаем message_id
+                await handleChangeMonthEnglish(bot, chatId, monthOffset, messageId);
             } else {
-                await handleChangeMonthRussian(bot, chatId, monthOffset, messageId); // Передаем message_id
+                await handleChangeMonthRussian(bot, chatId, monthOffset, messageId);
             }
 
-            await bot.answerCallbackQuery(callbackQuery.id); // Подтверждаем нажатие кнопки
+            await bot.answerCallbackQuery(callbackQuery.id);
         }
+
+        // Обработка записи приступа
+        else if (data.startsWith('record_seizure_')) {
+            const dateString = data.split('_')[2]; // Получаем дату в формате YYYY-MM-DD
+            const date = new Date(dateString); // Создаем объект Date напрямую
+            await recordSeizureRussian(bot, chatId, date);
+        }
+
+// Обработка начала записи на выбранную дату
+        if (data.startsWith('start_record_')) {
+            const dateString = data.split('_')[2]; // Получаем дату в формате 2024-10-08T00:00:00.000Z
+            const date = dateString.split('T')[0]; // Оставляем только часть YYYY-MM-DD
+            await startRecording(bot, chatId, date);
+        }
+
+// Обработка отмены записи
+        else if (data === 'cancel_record') {
+            await bot.sendMessage(chatId, 'Запись отменена.'); // Сообщение об отмене записи
+        }
+
+
 
         // Добавляем обработчики для связи с врачом
         else if (data === 'doctor_connection') {
