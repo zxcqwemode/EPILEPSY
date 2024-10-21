@@ -44,7 +44,101 @@ const seizureCalendarEnglish = require('./cabinet/calendar/seizureCalendarEnglis
 
 // Функция для проверки и создания таблиц
 const initializeDatabase = async () => {
-    // (Логика проверки и создания таблиц)
+
+    const checkUsersTable = `
+        SELECT EXISTS (
+            SELECT FROM pg_tables 
+            WHERE tablename = 'users'
+        );
+    `;
+
+    const checkDoctorsTable = `
+        SELECT EXISTS (
+            SELECT FROM pg_tables 
+            WHERE tablename = 'doctors'
+        );
+    `;
+
+    const checkMessagesTable = `
+        SELECT EXISTS (
+            SELECT FROM pg_tables 
+            WHERE tablename = 'messages'
+        );
+    `;
+    const calendarTableExists = await db.query(`
+    SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'calendar'
+    );
+`);
+    if (!calendarTableExists.rows[0].exists) {
+        const createCalendarTable = `
+        CREATE TABLE calendar (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            date DATE NOT NULL,
+            had_seizure BOOLEAN NOT NULL,
+            seizure_duration INT,
+            medications TEXT[],
+            note BOOLEAN,
+            note_text VARCHAR(50), 
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+        await db.query(createCalendarTable);
+        console.log("Таблица 'calendar' была создана.");
+    }
+    const usersTableExists = await db.query(checkUsersTable);
+    const doctorsTableExists = await db.query(checkDoctorsTable);
+    const messagesTableExists = await db.query(checkMessagesTable);
+
+    // Если таблицы не существуют, создаем их
+    if (!usersTableExists.rows[0].exists) {
+        const createUsersTable = `
+            CREATE TABLE users (
+                chat_id BIGINT PRIMARY KEY,
+                language VARCHAR(50),
+                gender VARCHAR(50),
+                timezone_gmt INTEGER,
+                notification_period VARCHAR(50),
+                notification_hour_msk INTEGER,
+                notification_hour_gmt INTEGER,
+                step VARCHAR(50),
+                notification_text VARCHAR(50),
+                doctor_key VARCHAR(255),
+                key_valid BOOLEAN DEFAULT FALSE
+            );
+        `;
+        await db.query(createUsersTable);
+        console.log("Таблица 'users' была создана.");
+    }
+    if (!doctorsTableExists.rows[0].exists) {
+        const createDoctorsTable = `
+            CREATE TABLE doctors (
+                chat_id BIGINT PRIMARY KEY,
+                language VARCHAR(50),
+                doctor_key VARCHAR(50)
+           
+            );
+        `;
+        await db.query(createDoctorsTable);
+        console.log("Таблица 'doctors' была создана.");
+    }
+    if (!messagesTableExists.rows[0].exists) {
+        const createMessagesTable = `
+            CREATE TABLE messages (
+                message_id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                doctor_key VARCHAR(50) NOT NULL,
+                message_text TEXT NOT NULL,
+                message_date TIMESTAMP DEFAULT NOW(),
+                FOREIGN KEY (user_id) REFERENCES users (chat_id)
+            );
+        `;
+        await db.query(createMessagesTable);
+        console.log("Таблица 'messages' была создана.");
+    }
+
 };
 
 // Инициализация бота
@@ -198,17 +292,14 @@ initializeDatabase().then(() => {
             await recordSeizureRussian(bot, chatId, date);
         }
 
-// Обработка начала записи на выбранную дату
+        // Обработка начала записи на выбранную дату
         if (data.startsWith('start_record_')) {
             const dateString = data.split('_')[2]; // Получаем дату в формате 2024-10-08T00:00:00.000Z
             const date = dateString.split('T')[0]; // Оставляем только часть YYYY-MM-DD
             await startRecording(bot, chatId, date);
         }
 
-// Обработка отмены записи
-        else if (data === 'cancel_record') {
-            await bot.sendMessage(chatId, 'Запись отменена.'); // Сообщение об отмене записи
-        }
+
 
 
 

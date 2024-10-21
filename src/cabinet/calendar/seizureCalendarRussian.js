@@ -125,7 +125,7 @@ async function handleChangeMonthRussian(bot, chatId, monthOffset, messageId) {
 
 // Обработчик записи приступа (русский)
 async function recordSeizureRussian(bot, chatId, date) {
-    const userId = chatId; // Или любой другой способ получить user_id
+    const userId = chatId;
 
     // Преобразуем дату в формат YYYY-MM-DD
     const formattedDate = date.toISOString().split('T')[0]; // Получаем только дату
@@ -141,12 +141,13 @@ async function recordSeizureRussian(bot, chatId, date) {
 // Обработчик начала записи на выбранную дату (русский)
 async function startRecording(bot, chatId, date) {
 
-    await bot.sendMessage(chatId, `Начинаем запись на ${date.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}\n\nУ вас был приступ эпилепсии?`, {
+    await bot.sendMessage(chatId, `Начинаем запись на ${date.toLocaleString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}\n\n
+    У вас был приступ эпилепсии?`, {
         reply_markup: {
             inline_keyboard: [
                 [
                     { text: 'Да', callback_data: `record_seizure_${date}`},
-                    { text: 'Нет', callback_data: 'cancel_record' }
+                    { text: 'Нет', callback_data: `record_no_seizure_${date}`}
                 ]
             ]
         }
