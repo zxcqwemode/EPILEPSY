@@ -35,120 +35,13 @@ const handleDoctorConnectionEnglish = require('./cabinet/doctorConnection/doctor
 const handleSendMessageEnglish = require('./cabinet/doctorConnection/sendMessageEnglish');
 const handleViewMessagesEnglish = require('./cabinet/doctorConnection/viewMessagesEnglish');
 
-const {
-    showSeizureCalendarRussian,
-    handleCalendarDayRussian,
-    changeCalendarMonth,
-    handleSeizureEntry,
-    handleMedicationsEntry
-} = require('./cabinet/calendar/seizureCalendarRussian'); // Импортируем функции для русского языка
-
-
-
+const {seizureCalendarRussian,
+    handleChangeMonthRussian}= require('./cabinet/calendar/seizureCalendarRussian');
+const seizureCalendarEnglish = require('./cabinet/calendar/seizureCalendarEnglish');
 
 // Функция для проверки и создания таблиц
 const initializeDatabase = async () => {
-    const checkUsersTable = `
-        SELECT EXISTS (
-            SELECT FROM pg_tables 
-            WHERE tablename = 'users'
-        );
-    `;
-
-    const checkDoctorsTable = `
-        SELECT EXISTS (
-            SELECT FROM pg_tables 
-            WHERE tablename = 'doctors'
-        );
-    `;
-
-    const checkMessagesTable = `
-        SELECT EXISTS (
-            SELECT FROM pg_tables 
-            WHERE tablename = 'messages'
-        );
-    `;
-
-
-    const calendarTableExists = await db.query(`
-    SELECT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE table_name = 'calendar'
-    );
-`);
-
-    if (!calendarTableExists.rows[0].exists) {
-        const createCalendarTable = `
-        CREATE TABLE calendar (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            date DATE NOT NULL,
-            had_seizure BOOLEAN NOT NULL,
-            seizure_duration INT,
-            medications TEXT[],
-            note TEXT,
-            created_at TIMESTAMP DEFAULT NOW()
-        );
-    `;
-        await db.query(createCalendarTable);
-        console.log("Таблица 'calendar' была создана.");
-    }
-
-
-
-    const usersTableExists = await db.query(checkUsersTable);
-    const doctorsTableExists = await db.query(checkDoctorsTable);
-    const messagesTableExists = await db.query(checkMessagesTable);
-
-    // Если таблицы не существуют, создаем их
-    if (!usersTableExists.rows[0].exists) {
-        const createUsersTable = `
-            CREATE TABLE users (
-                chat_id BIGINT PRIMARY KEY,
-                language VARCHAR(50),
-                gender VARCHAR(50),
-                timezone_gmt INTEGER,
-                notification_period VARCHAR(50),
-                notification_hour_msk INTEGER,
-                notification_hour_gmt INTEGER,
-                step VARCHAR(50),
-                notification_text VARCHAR(50),
-                doctor_key VARCHAR(255),
-                key_valid BOOLEAN DEFAULT FALSE
-            );
-        `;
-        await db.query(createUsersTable);
-        console.log("Таблица 'users' была создана.");
-    }
-
-    if (!doctorsTableExists.rows[0].exists) {
-        const createDoctorsTable = `
-            CREATE TABLE doctors (
-                chat_id BIGINT PRIMARY KEY,
-                language VARCHAR(50),
-                doctor_key VARCHAR(50)
-           
-            );
-        `;
-        await db.query(createDoctorsTable);
-        console.log("Таблица 'doctors' была создана.");
-    }
-
-
-    if (!messagesTableExists.rows[0].exists) {
-        const createMessagesTable = `
-            CREATE TABLE messages (
-                message_id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                doctor_key VARCHAR(50) NOT NULL,
-                message_text TEXT NOT NULL,
-                message_date TIMESTAMP DEFAULT NOW(),
-                FOREIGN KEY (user_id) REFERENCES users (chat_id)
-            );
-        `;
-        await db.query(createMessagesTable);
-        console.log("Таблица 'messages' была создана.");
-    }
+    // (Логика проверки и создания таблиц)
 };
 
 // Инициализация бота
@@ -156,7 +49,7 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 // Вызов функции инициализации базы данных
 initializeDatabase().then(() => {
-    //Обработчик команды /start
+    // Обработчик команды /start
     bot.onText(/\/start/, (msg) => {
         handleStartCommand(bot, msg);
     });
@@ -175,67 +68,129 @@ initializeDatabase().then(() => {
         const chatId = callbackQuery.message.chat.id;
         const data = callbackQuery.data;
 
+        // Инициализация userMessageIds
+        if (!bot.userMessageIds) {
+            bot.userMessageIds = {};
+        }
+
         // Проверяем, выбрал ли пользователь язык
         if (data === 'language_russian' || data === 'language_english') {
             await handleLanguageSelection(bot, callbackQuery);
             userLanguages[chatId] = data === 'language_russian' ? 'Русский' : 'English';
-        } else if (data === 'info_about_disease') {
+        }
+        // Информация о болезни
+        else if (data === 'info_about_disease') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await informationEnglish(bot, chatId);
             } else {
                 await informationRussian(bot, chatId);
             }
-
-            } else if (data === 'back_to_profile') {
-                const userLanguage = userLanguages[chatId] || 'Русский';
-                if (userLanguage === 'English') {
-                    await callbackMyProfileEnglish(bot, { chat: { id: chatId } });
-                } else {
-                    await callbackMyProfileRussian(bot, { chat: { id: chatId } });
-                }
-
-
-        } else if (data === 'notifications') {
+        }
+        // Возвращение в профиль
+        else if (data === 'back_to_profile') {
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            if (userLanguage === 'English') {
+                await callbackMyProfileEnglish(bot, { chat: { id: chatId } });
+            } else {
+                await callbackMyProfileRussian(bot, { chat: { id: chatId } });
+            }
+        }
+        // Обработка уведомлений
+        else if (data === 'notifications') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleNotificationsEnglish(bot, chatId);
             } else {
                 await handleNotificationsRussian(bot, chatId);
             }
-
-        } else if (data === 'change_notification') {
+        }
+        else if (data === 'change_notification') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleChangeNotificationEnglish(bot, chatId);
             } else {
                 await handleChangeNotificationRussian(bot, chatId);
             }
-
-        } else if (data === 'change_time') {
+        }
+        else if (data === 'change_time') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleChangeTimeEnglish(bot, chatId);
             } else {
                 await handleChangeTimeRussian(bot, chatId);
             }
-
-        } else if (data === 'change_text') {
+        }
+        else if (data === 'change_text') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleChangeTextEnglish(bot, chatId);
             } else {
                 await handleChangeTextRussian(bot, chatId);
             }
-
-        } else if (data.startsWith('time_morning_edit') || data.startsWith('time_afternoon_edit') || data.startsWith('time_evening_edit')) {
+        }
+        else if (data.startsWith('time_morning_edit') || data.startsWith('time_afternoon_edit') || data.startsWith('time_evening_edit')) {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
-                await handleSetTimeEnglish(bot, chatId, data); // Передаем callbackData
+                await handleSetTimeEnglish(bot, chatId, data);
             } else {
-                await handleSetTimeRussian(bot, chatId, data); // Передаем callbackData
+                await handleSetTimeRussian(bot, chatId, data);
             }
         }
+
+// Обработка команды /seizure_calendar
+        else if (data === 'seizure_calendar') {
+            const userLanguage = userLanguages[chatId] || 'Русский';
+
+            // Отправляем сообщение и сохраняем его идентификатор
+            const message = await bot.sendMessage(chatId, 'Ваш календарь приступов\n\nЕсли в календаре уже есть запись, то значок покажет, был ли у вас приступ:\n🔸 — Приступ без приема препаратов\n🔺 — Приступ с препаратами', {
+                reply_markup: {
+                    inline_keyboard: [] // Здесь должны быть ваши кнопки
+                }
+            });
+
+            // Сохраняем идентификатор сообщения
+            bot.userMessageIds[chatId] = message.message_id;
+
+            if (userLanguage === 'English') {
+                await seizureCalendarEnglish(bot, chatId);
+            } else {
+                await seizureCalendarRussian(bot, chatId, message.message_id); // Передаем messageId
+            }
+        }
+
+        // Обработка команды 'seizure_calendar'
+        else if (data === 'seizure_calendar') {
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            let message;
+
+            // Вызов функции для отправки календаря в зависимости от языка
+            if (userLanguage === 'English') {
+                message = await seizureCalendarEnglish(bot, chatId); // Сохраняем объект сообщения
+            } else {
+                message = await seizureCalendarRussian(bot, chatId); // Сохраняем объект сообщения
+            }
+
+            // Сохраняем идентификатор сообщения для редактирования
+            bot.userMessageIds[chatId] = message.message_id;
+        }
+
+        // Обработка изменения месяца
+        else if (data.startsWith('change_month_')) {
+            const monthOffset = parseInt(data.split('_')[2]);
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            const messageId = bot.userMessageIds[chatId]; // Получаем сохраненный message_id
+
+            // Проверка языка и вызов соответствующей функции для изменения месяца
+            if (userLanguage === 'English') {
+                await handleChangeMonthEnglish(bot, chatId, monthOffset, messageId); // Передаем message_id
+            } else {
+                await handleChangeMonthRussian(bot, chatId, monthOffset, messageId); // Передаем message_id
+            }
+
+            await bot.answerCallbackQuery(callbackQuery.id); // Подтверждаем нажатие кнопки
+        }
+
         // Добавляем обработчики для связи с врачом
         else if (data === 'doctor_connection') {
             const userLanguage = userLanguages[chatId] || 'Русский';
@@ -244,16 +199,16 @@ initializeDatabase().then(() => {
             } else {
                 await handleDoctorConnectionRussian(bot, chatId);
             }
-
-        } else if (data === 'send_message') {
+        }
+        else if (data === 'send_message') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleSendMessageEnglish(bot, chatId);
             } else {
                 await handleSendMessageRussian(bot, chatId);
             }
-
-        } else if (data === 'view_messages') {
+        }
+        else if (data === 'view_messages') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleViewMessagesEnglish(bot, chatId);
@@ -261,66 +216,7 @@ initializeDatabase().then(() => {
                 await handleViewMessagesRussian(bot, chatId);
             }
         }
-
-
-        // Добавляем обработку для "Календаря приступов"
-        else if (data === 'seizure_calendar') {
-            const userLanguage = userLanguages[chatId] || 'Русский';
-            if (userLanguage === 'English') {
-                await showSeizureCalendarEnglish(bot, chatId);
-            } else {
-                await showSeizureCalendarRussian(bot, chatId);
-            }
-        }
-// Обработка нажатия на день в календаре
-        else if (data.startsWith('calendar_')) {
-            const day = parseInt(data.split('_')[1], 10);
-            const userLanguage = userLanguages[chatId] || 'Русский';
-            //const monthOffset = parseInt(data.split('_')[2], 10) || 0;  // Добавил месяц
-
-            if (userLanguage === 'English') {
-                await handleCalendarDayEnglish(bot, chatId, day, monthOffset);
-            } else {
-                await handleCalendarDayRussian(bot, chatId, day, monthOffset);
-            }
-        }
-// Начало записи о приступе (если был приступ), точная проверка для 'seizure_entry'
-        else if (data.startsWith('seizure_entry_')) {
-            const [_, hadSeizure, day, monthOffset] = data.split('_');
-            const userLanguage = userLanguages[chatId] || 'Русский';
-
-            if (userLanguage === 'English') {
-                await handleSeizureEntryEnglish(bot, chatId, day, monthOffset, hadSeizure);
-            } else {
-                await handleSeizureEntry(bot, chatId, day, monthOffset, hadSeizure);
-            }
-        }
-// Обработка приёма лекарств после приступа, точная проверка для 'medications_entry'
-        else if (data.startsWith('medications_entry_')) {
-            const [_, medications, day, monthOffset] = data.split('_');
-            const userLanguage = userLanguages[chatId] || 'Русский';
-
-            if (userLanguage === 'English') {
-                await handleMedicationsEntryEnglish(bot, chatId, day, monthOffset, medications);
-            } else {
-                await handleMedicationsEntry(bot, chatId, day, monthOffset, medications);
-            }
-        }
-// Обработка смены месяца в календаре
-        else if (data.startsWith('change_month_')) {
-            const monthOffset = parseInt(data.split('_')[2], 10);
-            const messageId = callbackQuery.message.message_id;
-            const userLanguage = userLanguages[chatId] || 'Русский';
-
-            if (userLanguage === 'English') {
-                await changeCalendarMonthEnglish(bot, chatId, monthOffset);
-            } else {
-                await changeCalendarMonth(bot, chatId, monthOffset);
-            }
-
-
-
-    } else {
+        else {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleCallbackQueryEnglish(bot, callbackQuery);
