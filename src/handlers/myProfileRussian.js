@@ -1,5 +1,5 @@
 const db = require('../config/db');
-const informationRussian = require('../cabinet/informationHandler/informationRussian'); // Импортируем новый файл
+
 
 module.exports = async function callbackMyProfileRussian(bot, msg) {
     const chatId = msg.chat.id;
@@ -47,9 +47,8 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
         };
 
         // Отправка профиля пользователю
-        await bot.sendMessage(chatId, profileMessage);
-        // Отправка кнопок для управления личным кабинетом
-        await bot.sendMessage(chatId, 'Выберите действие:', options);
+        await bot.sendMessage(chatId, profileMessage, options);
+
     } catch (err) {
         console.error('Ошибка при обработке команды myProfileRussian:', err);
         await bot.sendMessage(chatId, 'Произошла ошибка при получении профиля. Попробуйте позже.');

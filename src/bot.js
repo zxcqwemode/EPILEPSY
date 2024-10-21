@@ -35,6 +35,17 @@ const handleDoctorConnectionEnglish = require('./cabinet/doctorConnection/doctor
 const handleSendMessageEnglish = require('./cabinet/doctorConnection/sendMessageEnglish');
 const handleViewMessagesEnglish = require('./cabinet/doctorConnection/viewMessagesEnglish');
 
+const {
+    showSeizureCalendarRussian,
+    handleCalendarDayRussian,
+    changeCalendarMonth,
+    handleSeizureEntry,
+    handleMedicationsEntry
+} = require('./cabinet/calendar/seizureCalendarRussian'); // Импортируем функции для русского языка
+
+
+
+
 // Функция для проверки и создания таблиц
 const initializeDatabase = async () => {
     const checkUsersTable = `
@@ -57,6 +68,33 @@ const initializeDatabase = async () => {
             WHERE tablename = 'messages'
         );
     `;
+
+
+    const calendarTableExists = await db.query(`
+    SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'calendar'
+    );
+`);
+
+    if (!calendarTableExists.rows[0].exists) {
+        const createCalendarTable = `
+        CREATE TABLE calendar (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            date DATE NOT NULL,
+            had_seizure BOOLEAN NOT NULL,
+            seizure_duration INT,
+            medications TEXT[],
+            note TEXT,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    `;
+        await db.query(createCalendarTable);
+        console.log("Таблица 'calendar' была создана.");
+    }
+
+
 
     const usersTableExists = await db.query(checkUsersTable);
     const doctorsTableExists = await db.query(checkDoctorsTable);
@@ -95,6 +133,7 @@ const initializeDatabase = async () => {
         await db.query(createDoctorsTable);
         console.log("Таблица 'doctors' была создана.");
     }
+
 
     if (!messagesTableExists.rows[0].exists) {
         const createMessagesTable = `
@@ -221,8 +260,67 @@ initializeDatabase().then(() => {
             } else {
                 await handleViewMessagesRussian(bot, chatId);
             }
+        }
 
-        } else {
+
+        // Добавляем обработку для "Календаря приступов"
+        else if (data === 'seizure_calendar') {
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            if (userLanguage === 'English') {
+                await showSeizureCalendarEnglish(bot, chatId);
+            } else {
+                await showSeizureCalendarRussian(bot, chatId);
+            }
+        }
+// Обработка нажатия на день в календаре
+        else if (data.startsWith('calendar_')) {
+            const day = parseInt(data.split('_')[1], 10);
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            //const monthOffset = parseInt(data.split('_')[2], 10) || 0;  // Добавил месяц
+
+            if (userLanguage === 'English') {
+                await handleCalendarDayEnglish(bot, chatId, day, monthOffset);
+            } else {
+                await handleCalendarDayRussian(bot, chatId, day, monthOffset);
+            }
+        }
+// Начало записи о приступе (если был приступ), точная проверка для 'seizure_entry'
+        else if (data.startsWith('seizure_entry_')) {
+            const [_, hadSeizure, day, monthOffset] = data.split('_');
+            const userLanguage = userLanguages[chatId] || 'Русский';
+
+            if (userLanguage === 'English') {
+                await handleSeizureEntryEnglish(bot, chatId, day, monthOffset, hadSeizure);
+            } else {
+                await handleSeizureEntry(bot, chatId, day, monthOffset, hadSeizure);
+            }
+        }
+// Обработка приёма лекарств после приступа, точная проверка для 'medications_entry'
+        else if (data.startsWith('medications_entry_')) {
+            const [_, medications, day, monthOffset] = data.split('_');
+            const userLanguage = userLanguages[chatId] || 'Русский';
+
+            if (userLanguage === 'English') {
+                await handleMedicationsEntryEnglish(bot, chatId, day, monthOffset, medications);
+            } else {
+                await handleMedicationsEntry(bot, chatId, day, monthOffset, medications);
+            }
+        }
+// Обработка смены месяца в календаре
+        else if (data.startsWith('change_month_')) {
+            const monthOffset = parseInt(data.split('_')[2], 10);
+            const messageId = callbackQuery.message.message_id;
+            const userLanguage = userLanguages[chatId] || 'Русский';
+
+            if (userLanguage === 'English') {
+                await changeCalendarMonthEnglish(bot, chatId, monthOffset);
+            } else {
+                await changeCalendarMonth(bot, chatId, monthOffset);
+            }
+
+
+
+    } else {
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await handleCallbackQueryEnglish(bot, callbackQuery);

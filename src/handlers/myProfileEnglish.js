@@ -47,9 +47,8 @@ Your Profile:
         };
 
         // Отправка профиля пользователю
-        await bot.sendMessage(chatId, profileMessage);
-        // Отправка кнопок для управления личным кабинетом
-        await bot.sendMessage(chatId, 'Choose an action:', options);
+        await bot.sendMessage(chatId, profileMessage, options);
+
     } catch (err) {
         console.error('Error while processing the myProfileEnglish command:', err);
         await bot.sendMessage(chatId, 'An error occurred while retrieving your profile. Please try again later.');
