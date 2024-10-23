@@ -1,4 +1,4 @@
-const db = require('../../config/db'); // Импортируем базу данных
+const db = require('../config/db'); // Импортируем базу данных
 
 // Функция для обработки выбранного времени
 module.exports = async function handleSetTimeRussian(bot, chatId, callbackData) {

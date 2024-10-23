@@ -1,4 +1,4 @@
-const db = require('../../config/db'); // Importing the database
+const db = require('../config/db'); // Importing the database
 
 // Function to handle changing notification text
 module.exports = async function handleChangeTextEnglish(bot, chatId) {

@@ -1,4 +1,4 @@
-const db = require('../../config/db'); // Импортируем базу данных
+const db = require('../config/db'); // Импортируем базу данных
 
 // Функция для обработки изменения текста уведомления
 module.exports = async function handleChangeTextRussian(bot, chatId) {

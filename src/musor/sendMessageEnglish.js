@@ -1,4 +1,4 @@
-const db = require('../../config/db');
+const db = require('../config/db');
 
 // Обработчик для отправки сообщения врачу (английский)
 module.exports = async function handleSendMessageEnglish(bot, chatId) {

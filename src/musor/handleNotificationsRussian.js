@@ -1,4 +1,4 @@
-const db = require('../../config/db');
+const db = require('../config/db');
 
 // Функция для обработки уведомлений
 module.exports = async function handleNotificationsRussian(bot, chatId) {

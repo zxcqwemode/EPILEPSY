@@ -1,6 +1,5 @@
 const db = require('../config/db');
 
-
 module.exports = async function callbackMyProfileRussian(bot, msg) {
     const chatId = msg.chat.id;
 
@@ -40,18 +39,18 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
                     ],
                     [
                         { text: 'Сделать запись', callback_data: 'make_record' },
-                        { text: 'Приступ', callback_data: 'seizure' },
+                        { text: 'Приступ', callback_data: 'start_timer_seizure' },
                     ],
                 ],
             },
         };
 
-        // Отправка профиля пользователю
+        // Отправка профиля пользователю с возможностью последующего удаления
         await bot.sendMessage(chatId, profileMessage, options);
+
 
     } catch (err) {
         console.error('Ошибка при обработке команды myProfileRussian:', err);
         await bot.sendMessage(chatId, 'Произошла ошибка при получении профиля. Попробуйте позже.');
     }
-
 };

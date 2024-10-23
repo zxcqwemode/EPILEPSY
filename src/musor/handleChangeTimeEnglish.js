@@ -1,4 +1,4 @@
-const db = require('../../config/db');
+const db = require('../config/db');
 
 module.exports = async function handleChangeTimeEnglish(bot, chatId) {
     const message = "When do you prefer to receive notifications?";
