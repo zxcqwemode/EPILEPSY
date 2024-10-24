@@ -163,7 +163,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
 
         else if (data === 'back_to_profile') {
             await bot.deleteMessage(chatId, callbackQuery.message.message_id);
-            bot.emit('return_to_profile', chatId);
+            bot.emit('back_to_profile', chatId);
             return;
         }
 
@@ -230,7 +230,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
             });
 
             // Добавляем обработчик для финальных кнопок
-            addFinalButtonsHandler();
+            //addFinalButtonsHandler();
         }
 
         // Обработка добавления заметки при отсутствии приступа
@@ -273,7 +273,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
                     bot.removeListener('message', messageHandler);
 
                     // Добавляем обработчик для финальных кнопок
-                    addFinalButtonsHandler();
+                    //addFinalButtonsHandler();
                 }
             };
 
@@ -438,7 +438,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
             });
 
             // Добавляем обработчик для финальных кнопок
-            addFinalButtonsHandler();
+            //addFinalButtonsHandler();
         }
 
         else if (data.startsWith('add_note_')) {
@@ -479,7 +479,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
                     bot.removeListener('message', messageHandler);
 
                     // Добавляем обработчик для финальных кнопок
-                    addFinalButtonsHandler();
+                    //addFinalButtonsHandler();
                 }
             };
 
@@ -488,20 +488,20 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
     };
 
     // Функция для добавления обработчика финальных кнопок
-    const addFinalButtonsHandler = () => {
-        const finalButtonsHandler = async (finalQuery) => {
-            if (finalQuery.data === 'seizure_calendar') {
-                await bot.deleteMessage(chatId, finalQuery.message.message_id);
-                const message = await bot.sendMessage(chatId, 'Загрузка календаря...');
-                bot.userMessageIds[chatId] = message.message_id;
-                await seizureCalendarRussian(bot, chatId, message.message_id);
-            } else if (finalQuery.data === 'back_to_profile') {
-                await bot.deleteMessage(chatId, finalQuery.message.message_id);
-                bot.emit('return_to_profile', chatId);
-            }
-        };
-        bot.once('callback_query', finalButtonsHandler);
-    };
+    // const addFinalButtonsHandler = () => {
+    //     const finalButtonsHandler = async (finalQuery) => {
+    //         if (finalQuery.data === 'seizure_calendar') {
+    //             await bot.deleteMessage(chatId, finalQuery.message.message_id);
+    //             const message = await bot.sendMessage(chatId, 'Загрузка календаря...');
+    //             bot.userMessageIds[chatId] = message.message_id;
+    //             await seizureCalendarRussian(bot, chatId, message.message_id);
+    //         } else if (finalQuery.data === 'back_to_profile') {
+    //             await bot.deleteMessage(chatId, finalQuery.message.message_id);
+    //             bot.emit('return_to_profile', chatId);
+    //         }
+    //     };
+    //     bot.once('callback_query', finalButtonsHandler);
+    // };
 
     // Добавляем основной обработчик
     bot.on('callback_query', callbackHandler);

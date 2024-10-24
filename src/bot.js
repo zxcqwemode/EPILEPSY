@@ -15,6 +15,7 @@ const scheduleNotifications = require('./cabinet/notificationHandler/notificatio
 
 // Импортируем обработчики для управления уведомлениями
 const NotificationHandlersRussian = require('./cabinet/notificationHandler/notificationHandlersRussian');
+const NotificationHandlersEnglish = require('./cabinet/notificationHandler/notificationHandlersEnglish');
 
 // Импорт обработчиков для связи с врачом
 const DoctorPatientHandlerRussian = require('./cabinet/doctorConnection/DoctorPatientHandlerRussian');
@@ -130,7 +131,7 @@ const initializeDatabase = async () => {
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-const notificationHandlers = new NotificationHandlersRussian(bot);
+//const notificationHandlers = new NotificationHandlersRussian(bot);
 const doctorHandlerRussian = new DoctorPatientHandlerRussian(bot);
 const doctorHandlerEnglish = new DoctorPatientHandlerEnglish(bot);
 
@@ -212,14 +213,20 @@ initializeDatabase().then(() => {
         // Информация о болезни
         else if (data === 'info_about_disease') {
             const userLanguage = userLanguages[chatId] || 'Русский';
+            const messageId = callbackQuery.message.message_id; // Получаем ID сообщения, которое будет изменено
+
             if (userLanguage === 'English') {
-                await informationEnglish(bot, chatId);
+                await informationEnglish(bot, chatId, messageId);
             } else {
-                await informationRussian(bot, chatId);
+                await informationRussian(bot, chatId, messageId); // Передаем messageId
             }
         }
         // Возвращение в профиль
         else if (data === 'back_to_profile') {
+            await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+                chat_id: chatId,
+                message_id: callbackQuery.message.message_id
+            });
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
                 await callbackMyProfileEnglish(bot, { chat: { id: chatId } });
@@ -230,7 +237,14 @@ initializeDatabase().then(() => {
 
         // Обработка уведомлений
         else if (data === 'notifications') {
-            await notificationHandlers.handleNotificationsRussian(callbackQuery.message.chat.id);
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            const messageId = callbackQuery.message.message_id; // Получаем ID сообщения, которое будет изменено
+
+            if (userLanguage === 'English') {
+                await NotificationHandlersEnglish(bot, callbackQuery.message.chat.id, callbackQuery.message.message_id);
+            } else {
+                await NotificationHandlersRussian(bot, callbackQuery.message.chat.id, callbackQuery.message.message_id);
+            }
         }
 
         //Обработка команды /seizure_calendar

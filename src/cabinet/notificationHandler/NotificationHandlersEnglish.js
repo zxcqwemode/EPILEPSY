@@ -1,66 +1,65 @@
 const db = require('../../config/db');
 
-
-module.exports = async function notificationHandlersRussian(bot, chatId, messageId) {
-    const message = "Здесь вы можете изменить время или текст уведомления";
+module.exports = async function notificationHandlersEnglish(bot, chatId, messageId) {
+    const message = "Here you can change the time or text of your notification";
     const options = {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: 'Текст', callback_data: 'change_text' },
-                    { text: 'Время', callback_data: 'change_time' },
+                    { text: 'Text', callback_data: 'change_text' },
+                    { text: 'Time', callback_data: 'change_time' },
                 ],
                 [
-                    { text: 'Назад', callback_data: 'back_to_profile' },
+                    { text: 'Back', callback_data: 'back_to_profile' },
                 ],
             ],
         }
     };
 
-    // Изменяем существующее сообщение на новое с кнопками
+    // Edit existing message with new text and buttons
     await bot.editMessageText(message, {
         chat_id: chatId,
         message_id: messageId,
         reply_markup: options.reply_markup
     });
 
-    // Устанавливаем слушатель для обработки нажатий на кнопки
+    // Set up listener for button clicks
     bot.once('callback_query', async (query) => {
         if (query.data !== 'back_to_profile') {
             await bot.editMessageText(message, {
                 chat_id: chatId,
                 message_id: messageId
             });
-            await handleCallbackQueryRussian(bot, chatId, query.data);
+            await handleCallbackQueryEnglish(bot, chatId, query.data);
         }
     });
 };
 
-// Обработчик callback запросов
-async function handleCallbackQueryRussian(bot, chatId, callbackData) {
+// Callback query handler
+async function handleCallbackQueryEnglish(bot, chatId, callbackData) {
     switch (callbackData) {
         case 'change_text':
-            await handleChangeTextRussian(bot, chatId);
+            await handleChangeTextEnglish(bot, chatId);
             break;
         case 'change_time':
-            await handleChangeTimeRussian(bot, chatId);
+            await handleChangeTimeEnglish(bot, chatId);
             break;
     }
 }
 
-// Обработчик изменения текста
-async function handleChangeTextRussian(bot, chatId) {
-    await bot.sendMessage(chatId, "Напишите сообщение, которое я буду отправлять вам каждый день в выбранное вами время.");
+// Text change handler
+async function handleChangeTextEnglish(bot, chatId) {
+    await bot.sendMessage(chatId, "Write the message that I will send you every day at your chosen time.");
 
     bot.once('message', async (msg) => {
         const notificationText = msg.text;
         await db.query('UPDATE users SET notification_text = $1 WHERE chat_id = $2', [notificationText, chatId]);
 
-        const confirmMessage = `Отлично, теперь я буду вам присылать вместо стандартного уведомления вот это: "${notificationText}".`;
+        const confirmMessage = `Great, now instead of the standard notification, I will send you this: "${notificationText}".`;
         const options = {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: 'Вернуться в профиль', callback_data: 'back_to_profile' }],
+                    [{ text: 'Return to profile', callback_data: 'back_to_profile' }],
                 ],
             },
         };
@@ -68,16 +67,16 @@ async function handleChangeTextRussian(bot, chatId) {
     });
 }
 
-// Обработчик изменения времени
-async function handleChangeTimeRussian(bot, chatId) {
-    const message = "Когда вам удобно получать уведомления?";
+// Time change handler
+async function handleChangeTimeEnglish(bot, chatId) {
+    const message = "When would you like to receive notifications?";
     const options = {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: 'Утром', callback_data: 'time_morning_edit' },
-                    { text: 'Днем', callback_data: 'time_afternoon_edit' },
-                    { text: 'Вечером', callback_data: 'time_evening_edit' },
+                    { text: 'Morning', callback_data: 'time_morning_edit' },
+                    { text: 'Afternoon', callback_data: 'time_afternoon_edit' },
+                    { text: 'Evening', callback_data: 'time_evening_edit' },
                 ],
             ],
         },
@@ -89,12 +88,12 @@ async function handleChangeTimeRussian(bot, chatId) {
             chat_id: chatId,
             message_id: sentMessage.message_id
         });
-        await handleSetTimeRussian(bot, chatId, query.data);
+        await handleSetTimeEnglish(bot, chatId, query.data);
     });
 }
 
-// Обработчик установки времени
-async function handleSetTimeRussian(bot, chatId, callbackData) {
+// Time setting handler
+async function handleSetTimeEnglish(bot, chatId, callbackData) {
     let hoursOptions = [];
     const timeRanges = {
         'time_morning_edit': Array.from({ length: 6 }, (_, i) => i + 6),
@@ -104,10 +103,10 @@ async function handleSetTimeRussian(bot, chatId, callbackData) {
 
     const selectedRange = timeRanges[callbackData];
     if (selectedRange) {
-        hoursOptions = createTimeButtonsRussian(selectedRange);
+        hoursOptions = createTimeButtonsEnglish(selectedRange);
     }
 
-    const message = 'Выберите время по вашему местному времени:';
+    const message = 'Choose a time in your local timezone:';
     const hourOptions = {
         reply_markup: {
             inline_keyboard: hoursOptions,
@@ -122,13 +121,13 @@ async function handleSetTimeRussian(bot, chatId, callbackData) {
         });
 
         if (query.data.startsWith('hour_') && query.data.endsWith('_edit')) {
-            await saveSelectedTimeRussian(bot, chatId, query.data);
+            await saveSelectedTimeEnglish(bot, chatId, query.data);
         }
     });
 }
 
-// Вспомогательный метод для создания кнопок времени
-function createTimeButtonsRussian(hours) {
+// Helper function for creating time buttons
+function createTimeButtonsEnglish(hours) {
     const buttons = [];
     let row = [];
 
@@ -147,8 +146,8 @@ function createTimeButtonsRussian(hours) {
     return buttons;
 }
 
-// Сохранение выбранного времени
-async function saveSelectedTimeRussian(bot, chatId, hourData) {
+// Save selected time
+async function saveSelectedTimeEnglish(bot, chatId, hourData) {
     const hour = parseInt(hourData.split('_')[1]);
     const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
     const timezoneGmt = user.rows[0]?.timezone_gmt || 0;
@@ -161,11 +160,11 @@ async function saveSelectedTimeRussian(bot, chatId, hourData) {
         [notificationHourGmt, notificationHourMsk, chatId]
     );
 
-    const confirmationMessage = `Время уведомления обновлено на: ${hour}:00 по вашему времени. Чтобы вернуться в профиль, нажмите на кнопку "Вернуться".`;
+    const confirmationMessage = `Notification time updated to: ${hour}:00 in your time. To return to profile, click the "Return" button.`;
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{ text: 'Вернуться', callback_data: 'back_to_profile' }],
+                [{ text: 'Return', callback_data: 'back_to_profile' }],
             ],
         },
     };
