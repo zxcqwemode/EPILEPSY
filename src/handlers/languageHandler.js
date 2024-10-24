@@ -93,6 +93,15 @@ module.exports = async function handleLanguageSelection(bot, callbackQuery) {
 
                         // Отправляем сообщение с выбором роли
                         await bot.sendMessage(chatId, 'Choose your role:', options);
+
+                        // Удаляем сообщение с кнопкой "Continue"
+                        await bot.editMessageText('Click to continue:', {
+                            chat_id: chatId,
+                            message_id: continueCallback.message.message_id,
+                            reply_markup: {
+                                inline_keyboard: [], // Пустая клавиатура
+                            },
+                        });
                     } else {
                         // Если кнопка уже была нажата, ничего не делаем
                         await bot.answerCallbackQuery(continueCallback.id, { text: "You've already pressed continue.", show_alert: false });

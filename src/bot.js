@@ -131,7 +131,7 @@ const initializeDatabase = async () => {
 
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
-//const notificationHandlers = new NotificationHandlersRussian(bot);
+
 const doctorHandlerRussian = new DoctorPatientHandlerRussian(bot);
 const doctorHandlerEnglish = new DoctorPatientHandlerEnglish(bot);
 

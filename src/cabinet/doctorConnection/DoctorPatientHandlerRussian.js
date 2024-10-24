@@ -92,14 +92,19 @@ class DoctorPatientHandlerRussian {
 
     async handleSendMessageRussian(chatId) {
         this.waitingForMessage.add(chatId);
-        await this.bot.sendMessage(chatId, "Напишите ваше сообщение:", {
+
+        const sentMessage = await this.bot.sendMessage(chatId, "Напишите ваше сообщение:", {
             reply_markup: {
                 inline_keyboard: [
                     [{text: 'Отменить', callback_data: 'doctor_connection'}]
                 ]
             }
         });
+
+        // Сохраняем ID последнего сообщения, чтобы потом удалить кнопку "Отменить"
+        this.lastSentMessageId = sentMessage.message_id;
     }
+
 
     async handleMessageInputRussian(chatId, messageText) {
         if (!this.waitingForMessage.has(chatId)) return;
@@ -117,6 +122,21 @@ class DoctorPatientHandlerRussian {
             if (doctorResult.rows.length > 0) {
                 const doctorChatId = doctorResult.rows[0].chat_id;
                 await this.bot.sendMessage(doctorChatId, `Сообщение от ${name}:\n${messageText}`);
+            }
+
+            // Удаляем клавиатуру с кнопкой "Отменить"
+            try {
+                await this.bot.editMessageReplyMarkup(
+                    {inline_keyboard: []},
+                    {
+                        chat_id: chatId,
+                        message_id: this.lastSentMessageId // ID сообщения с кнопкой "Отменить"
+                    }
+                );
+            } catch (error) {
+                if (!error.message.includes('message is not modified')) {
+                    console.error('Error removing cancel button:', error);
+                }
             }
 
             this.waitingForMessage.delete(chatId);
@@ -166,21 +186,19 @@ class DoctorPatientHandlerRussian {
         const chatId = callbackQuery.message.chat.id;
         const data = callbackQuery.data;
 
-        // Удаляем клавиатуру только для определенных действий
-        if (data === 'retry_key' || data === 'back_to_profile') {
-            if (callbackQuery.message.reply_markup) {
-                try {
-                    await this.bot.editMessageReplyMarkup(
-                        {inline_keyboard: []},
-                        {
-                            chat_id: chatId,
-                            message_id: callbackQuery.message.message_id
-                        }
-                    );
-                } catch (error) {
-                    if (!error.message.includes('message is not modified')) {
-                        console.error('Error removing keyboard:', error);
+        // Удаляем клавиатуру, если callback_data не 'back_to_profile'
+        if (data !== 'back_to_profile') {
+            try {
+                await this.bot.editMessageReplyMarkup(
+                    {inline_keyboard: []},
+                    {
+                        chat_id: chatId,
+                        message_id: callbackQuery.message.message_id
                     }
+                );
+            } catch (error) {
+                if (!error.message.includes('message is not modified')) {
+                    console.error('Error removing keyboard:', error);
                 }
             }
         }
@@ -210,4 +228,5 @@ class DoctorPatientHandlerRussian {
         }
     }
 }
+
 module.exports = DoctorPatientHandlerRussian;
