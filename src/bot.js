@@ -28,6 +28,9 @@ const {seizureCalendarRussian,
     startRecordingRussian}= require('./cabinet/calendar/seizureCalendarRussian');
 const seizureCalendarEnglish = require('./cabinet/calendar/seizureCalendarEnglish');
 
+const seizureRussian = require('./cabinet/seizure/seizureRussian');
+const seizureEnglish = require('./cabinet/seizure/seizureEnglish');
+
 // Функция для проверки и создания таблиц
 const initializeDatabase = async () => {
 
@@ -64,11 +67,13 @@ const initializeDatabase = async () => {
             user_id BIGINT,
             date DATE,
             had_seizure BOOLEAN,
-            seizure_duration INT,
-            medications VARCHAR(50),
-            note BOOLEAN,
-            note_text VARCHAR(50), 
-            created_at TIMESTAMP DEFAULT NOW(),
+            seizure_duration VARCHAR(255),
+            seizure_description TEXT,
+            trigger VARCHAR(255),
+            repeated_seizures VARCHAR(255),
+            note BOOLEAN NOT NULL DEFAULT false,
+            note_text TEXT,
+            created_at TIMESTAMP,
             UNIQUE (user_id, date)
         );
     `;
@@ -105,7 +110,8 @@ const initializeDatabase = async () => {
             CREATE TABLE doctors (
                 chat_id BIGINT PRIMARY KEY,
                 language VARCHAR(50),
-                doctor_key VARCHAR(50)
+                doctor_key VARCHAR(50),
+                awaiting_message_for BIGINT
            
             );
         `;
@@ -115,9 +121,11 @@ const initializeDatabase = async () => {
     if (!messagesTableExists.rows[0].exists) {
         const createMessagesTable = `
             CREATE TABLE messages (
-                message_id SERIAL PRIMARY KEY,
+                message_id SERIAL PRIMARY KEY,       
                 user_id BIGINT NOT NULL,
                 doctor_key VARCHAR(50) NOT NULL,
+                file_id TEXT,
+                file_type TEXT,
                 message_text TEXT NOT NULL,
                 message_date TIMESTAMP DEFAULT NOW(),
                 FOREIGN KEY (user_id) REFERENCES users (chat_id)
@@ -134,7 +142,11 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 
 const doctorHandlerRussian = new DoctorPatientHandlerRussian(bot);
 const doctorHandlerEnglish = new DoctorPatientHandlerEnglish(bot);
+const handler = new DoctorPatientHandlerRussian(bot);
+await handler.init();
 
+seizureRussian.setupCallbackHandler(bot);
+seizureEnglish.setupCallbackHandler(bot);
 
 // Вызов функции инициализации базы данных
 initializeDatabase().then(() => {
@@ -186,9 +198,9 @@ initializeDatabase().then(() => {
         const userLanguage = userResult.rows[0]?.language;
 
         // Инициализация userMessageIds
-        if (!bot.userMessageIds) {
-            bot.userMessageIds = {};
-        }
+        // if (!bot.userMessageIds) {
+        //     bot.userMessageIds = {};
+        // }
 
         //Проверяем, выбрал ли пользователь язык
         if (data === 'language_russian' || data === 'language_english') {
@@ -208,6 +220,17 @@ initializeDatabase().then(() => {
                 await doctorHandlerRussian.handleCallbackRussian(callbackQuery);
             }
             return;
+        }
+
+        // Находим этот блок в существующем коде
+        else if (data.startsWith('start_timer_seizure')){
+            const userLanguage = userLanguages[chatId] || 'Русский';
+            const messageId = callbackQuery.message.message_id;
+            if (userLanguage === 'English') {
+                await seizureEnglish(bot, chatId, messageId); // Раскомментируйте когда добавите английскую версию
+            } else {
+                await seizureRussian(bot, chatId, messageId);
+            }
         }
 
         // Информация о болезни
@@ -249,34 +272,26 @@ initializeDatabase().then(() => {
 
         //Обработка команды /seizure_calendar
         else if (data === 'seizure_calendar') {
+            const messageId = callbackQuery.message.message_id; // Получаем ID сообщения, которое будет изменено
             const userLanguage = userLanguages[chatId] || 'Русский';
-            const message = await bot.sendMessage(chatId, 'Ваш календарь приступов\n\nЕсли в календаре уже есть запись, то значок покажет, был ли у вас приступ:\n🔸 — Приступ без приема препаратов\n🔺 — Приступ с препаратами', {
-                reply_markup: {
-                    inline_keyboard: [] // Здесь должны быть ваши кнопки
-                }
-            });
 
-            // Сохраняем идентификатор сообщения
-            bot.userMessageIds[chatId] = message.message_id;
-
-            // Отправляем календарь в зависимости от языка
+            // Вызываем обработчик в зависимости от языка и передаем message_id
             if (userLanguage === 'English') {
-                await seizureCalendarEnglish(bot, chatId);
+                await seizureCalendarEnglish(bot, chatId, messageId);
             } else {
-                await seizureCalendarRussian(bot, chatId, message.message_id); // Передаем messageId
+                await seizureCalendarRussian(bot, chatId, messageId);
             }
         }
-
 
         // Обработка нажатия на день в календаре
         else if (data.startsWith('calendar_')) {
             const [_, day, monthOffset] = data.split('_');
             const userLanguage = userLanguages[chatId] || 'Русский';
-
+            const messageId = callbackQuery.message.message_id;
             if (userLanguage === 'English') {
-                await handleDayPressEnglish(bot, chatId, day, monthOffset);
+                await handleDayPressEnglish(bot, chatId, day, monthOffset, messageId);
             } else {
-                await handleDayPressRussian(bot, chatId, day, monthOffset);
+                await handleDayPressRussian(bot, chatId, day, monthOffset, messageId);
             }
         }
 
@@ -284,7 +299,7 @@ initializeDatabase().then(() => {
         else if (data.startsWith('change_month_')) {
             const monthOffset = parseInt(data.split('_')[2]);
             const userLanguage = userLanguages[chatId] || 'Русский';
-            const messageId = bot.userMessageIds[chatId];
+            const messageId = callbackQuery.message.message_id;
 
             if (userLanguage === 'English') {
                 await handleChangeMonthEnglish(bot, chatId, monthOffset, messageId);
@@ -299,8 +314,10 @@ initializeDatabase().then(() => {
         else if (data.startsWith('start_record_')) {
             const dateString = data.split('_')[2]; // Получаем дату в формате 2024-10-08T00:00:00.000Z
             const date = dateString.split('T')[0]; // Оставляем только часть YYYY-MM-DD
-            await startRecordingRussian(bot, chatId, date);
+            const messageId = callbackQuery.message.message_id;
+            await startRecordingRussian(bot, chatId, date, messageId);
         }
+
 
         else {
             const userLanguage = userLanguages[chatId] || 'Русский';

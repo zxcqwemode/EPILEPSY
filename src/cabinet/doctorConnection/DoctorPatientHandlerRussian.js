@@ -3,9 +3,12 @@ const db = require('../../config/db');
 class DoctorPatientHandlerRussian {
     constructor(bot) {
         this.bot = bot;
-        this.waitingForKey = new Set(); // Ожидание первичного ввода ключа
-        this.waitingForName = new Set(); // Ожидание ввода имени
-        this.waitingForMessage = new Set(); // Ожидание ввода сообщения
+        this.waitingForKey = new Set();
+        this.waitingForName = new Set();
+        this.waitingForMessage = new Set();
+        this.waitingForAttachment = new Set(); // Для ожидания прикрепления файла
+        this.messageBuffer = new Map(); // Буфер для хранения составных сообщений
+
     }
 
     async handleDoctorConnectionRussian(chatId) {
@@ -73,13 +76,31 @@ class DoctorPatientHandlerRussian {
     }
 
     async handleViewMessagesRussian(chatId) {
-        const messages = await db.query('SELECT m.*, u.name FROM messages m JOIN users u ON m.user_id = u.chat_id WHERE user_id = $1 ORDER BY message_date DESC', [chatId]);
+        const messages = await db.query(`
+            SELECT m.*, u.name 
+            FROM messages m 
+            JOIN users u ON m.user_id = u.chat_id 
+            WHERE user_id = $1 
+            ORDER BY message_date DESC
+        `, [chatId]);
 
-        let messageText = messages.rows.length > 0
-            ? "История переписки:\n\n" + messages.rows.map(msg =>
-            `${msg.name} (${new Date(msg.message_date).toLocaleString()}):\n${msg.message_text}\n`
-        ).join('\n')
-            : "У вас нет сообщений.";
+        let messageText = "";
+        if (messages.rows.length > 0) {
+            messageText = "История переписки:\n\n";
+            for (const msg of messages.rows) {
+                messageText += `${msg.name} (${new Date(msg.message_date).toLocaleString()}):\n`;
+                if (msg.message_text) {
+                    messageText += `${msg.message_text}\n`;
+                }
+                if (msg.file_id) {
+                    const fileTypeText = msg.file_type === 'photo' ? 'Фото' : 'Файл';
+                    messageText += `[Прикреплён ${fileTypeText}]\n`;
+                }
+                messageText += '\n';
+            }
+        } else {
+            messageText = "У вас нет сообщений.";
+        }
 
         await this.bot.sendMessage(chatId, messageText, {
             reply_markup: {
@@ -90,65 +111,114 @@ class DoctorPatientHandlerRussian {
         });
     }
 
+
+    getFileTypeText(fileType) {
+        switch (fileType) {
+            case 'photo':
+                return 'фото';
+            case 'document':
+                return 'файл';
+            default:
+                return 'файл';
+        }
+    }
+
     async handleSendMessageRussian(chatId) {
         this.waitingForMessage.add(chatId);
+        this.waitingForAttachment.add(chatId);
 
-        const sentMessage = await this.bot.sendMessage(chatId, "Напишите ваше сообщение:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{text: 'Отменить', callback_data: 'doctor_connection'}]
-                ]
-            }
+        this.messageBuffer.set(chatId, {
+            text: null,
+            files: []
         });
 
-        // Сохраняем ID последнего сообщения, чтобы потом удалить кнопку "Отменить"
-        this.lastSentMessageId = sentMessage.message_id;
+        await this.bot.sendMessage(chatId,
+            "Напишите ваше сообщение и/или отправьте файл/фото.\n" +
+            "Вы можете:\n" +
+            "1. Отправить только текст\n" +
+            "2. Отправить только файл/фото\n" +
+            "3. Отправить текст и затем файл/фото\n" +
+            "Можно прикрепить несколько файлов.\n" +
+            "После отправки всего необходимого, нажмите 'Завершить':", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Завершить', callback_data: 'finish_message'}],
+                        [{text: 'Отменить', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
     }
 
 
-    async handleMessageInputRussian(chatId, messageText) {
-        if (!this.waitingForMessage.has(chatId)) return;
+    async handleMessageInputRussian(chatId, messageText, fileId = null, fileType = null) {
+        if (!this.waitingForMessage.has(chatId) && !this.waitingForAttachment.has(chatId)) return;
+
+        let messageBuffer = this.messageBuffer.get(chatId) || { text: null, files: [] };
+
+        if (messageText) {
+            messageBuffer.text = messageText;
+        }
+
+        if (fileId && fileType) {
+            messageBuffer.files.push({ fileId, fileType });
+        }
+
+        this.messageBuffer.set(chatId, messageBuffer);
+
+        if (fileId) {
+            const fileTypeText = fileType === 'photo' ? 'Фото' : 'Файл';
+            await this.bot.sendMessage(chatId, `${fileTypeText} успешно прикреплен. Можете прикрепить еще или нажать "Завершить"`);
+        }
+    }
+
+    async handleFinishMessageRussian(chatId) {
+        const messageBuffer = this.messageBuffer.get(chatId);
+        if (!messageBuffer) return;
 
         const userResult = await db.query('SELECT doctor_key, name FROM users WHERE chat_id = $1', [chatId]);
         if (userResult.rows.length > 0) {
             const {doctor_key, name} = userResult.rows[0];
 
-            await db.query(
-                'INSERT INTO messages (user_id, doctor_key, message_text, message_date) VALUES ($1, $2, $3, NOW())',
-                [chatId, doctor_key, messageText]
-            );
-
             const doctorResult = await db.query('SELECT chat_id FROM doctors WHERE doctor_key = $1', [doctor_key]);
-            if (doctorResult.rows.length > 0) {
-                const doctorChatId = doctorResult.rows[0].chat_id;
-                await this.bot.sendMessage(doctorChatId, `Сообщение от ${name}:\n${messageText}`);
-            }
+            const doctorChatId = doctorResult.rows[0]?.chat_id;
 
-            // Удаляем клавиатуру с кнопкой "Отменить"
-            try {
-                await this.bot.editMessageReplyMarkup(
-                    {inline_keyboard: []},
-                    {
-                        chat_id: chatId,
-                        message_id: this.lastSentMessageId // ID сообщения с кнопкой "Отменить"
+            if (doctorChatId) {
+                if (messageBuffer.text) {
+                    await db.query(
+                        'INSERT INTO messages (user_id, doctor_key, message_text, message_date) VALUES ($1, $2, $3, NOW())',
+                        [chatId, doctor_key, messageBuffer.text]
+                    );
+                    await this.bot.sendMessage(doctorChatId, `Сообщение от ${name}:\n${messageBuffer.text}`);
+                }
+
+                for (const file of messageBuffer.files) {
+                    await db.query(
+                        'INSERT INTO messages (user_id, doctor_key, file_id, file_type, message_date) VALUES ($1, $2, $3, $4, NOW())',
+                        [chatId, doctor_key, file.fileId, file.fileType]
+                    );
+
+                    const caption = `${file.fileType === 'photo' ? 'Фото' : 'Файл'} от ${name}`;
+
+                    if (file.fileType === 'photo') {
+                        await this.bot.sendPhoto(doctorChatId, file.fileId, { caption });
+                    } else {
+                        await this.bot.sendDocument(doctorChatId, file.fileId, { caption });
                     }
-                );
-            } catch (error) {
-                if (!error.message.includes('message is not modified')) {
-                    console.error('Error removing cancel button:', error);
                 }
             }
-
-            this.waitingForMessage.delete(chatId);
-            await this.bot.sendMessage(chatId, "Сообщение отправлено", {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{text: 'Написать еще', callback_data: 'send_message'}],
-                        [{text: 'Назад', callback_data: 'doctor_connection'}]
-                    ]
-                }
-            });
         }
+        this.messageBuffer.delete(chatId);
+        this.waitingForMessage.delete(chatId);
+        this.waitingForAttachment.delete(chatId);
+
+        await this.bot.sendMessage(chatId, "Сообщение отправлено", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Написать еще', callback_data: 'send_message'}],
+                    [{text: 'Назад', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
     }
 
     async handleChangeDoctorRussian(chatId) {
@@ -160,10 +230,9 @@ class DoctorPatientHandlerRussian {
         const chatId = msg.chat.id;
         const messageText = msg.text;
 
-        // Проверка на блокируемые команды
         if (this.isWaitingForInputRussian(chatId)) {
             if (messageText === '/start' || messageText === '/myProfile') {
-                return; // Блокируем команды
+                return;
             }
         }
 
@@ -171,22 +240,33 @@ class DoctorPatientHandlerRussian {
             await this.handleKeyInputRussian(chatId, messageText);
         } else if (this.waitingForName.has(chatId)) {
             await this.handleNameInputRussian(chatId, messageText);
-        } else if (this.waitingForMessage.has(chatId)) {
-            await this.handleMessageInputRussian(chatId, messageText);
+        } else if (this.waitingForMessage.has(chatId) || this.waitingForAttachment.has(chatId)) {
+            if (messageText) {
+                await this.handleMessageInputRussian(chatId, messageText);
+            }
+
+            if (msg.photo) {
+                const fileId = msg.photo[msg.photo.length - 1].file_id;
+                await this.handleMessageInputRussian(chatId, null, fileId, 'photo');
+            }
+
+            if (msg.document) {
+                await this.handleMessageInputRussian(chatId, null, msg.document.file_id, 'document');
+            }
         }
     }
 
     isWaitingForInputRussian(chatId) {
         return this.waitingForKey.has(chatId) ||
             this.waitingForName.has(chatId) ||
-            this.waitingForMessage.has(chatId);
+            this.waitingForMessage.has(chatId) ||
+            this.waitingForAttachment.has(chatId);
     }
 
     async handleCallbackRussian(callbackQuery) {
         const chatId = callbackQuery.message.chat.id;
         const data = callbackQuery.data;
 
-        // Удаляем клавиатуру, если callback_data не 'back_to_profile'
         if (data !== 'back_to_profile') {
             try {
                 await this.bot.editMessageReplyMarkup(
@@ -218,6 +298,9 @@ class DoctorPatientHandlerRussian {
                 break;
             case 'retry_key':
                 await this.requestDoctorKeyRussian(chatId);
+                break;
+            case 'finish_message':
+                await this.handleFinishMessageRussian(chatId);
                 break;
         }
 

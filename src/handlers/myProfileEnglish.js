@@ -1,5 +1,4 @@
 const db = require('../config/db');
-const informationEnglish = require('../cabinet/informationHandler/informationEnglish'); // Импортируем обработчик информации о заболевании на английском
 
 module.exports = async function callbackMyProfileEnglish(bot, msg) {
     const chatId = msg.chat.id;
@@ -36,11 +35,10 @@ Your Profile:
                     ],
                     [
                         { text: 'Seizure Calendar', callback_data: 'seizure_calendar' },
-                        { text: 'Contact Doctor', callback_data: 'doctor_connection' },
+                        { text: 'Seizure', callback_data: 'start_timer_seizure' },
                     ],
                     [
-                        { text: 'Make a Record', callback_data: 'make_record' },
-                        { text: 'Seizure', callback_data: 'seizure' },
+                        { text: 'Contact Doctor', callback_data: 'doctor_connection' },
                     ],
                 ],
             },

@@ -35,11 +35,10 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
                     ],
                     [
                         { text: 'Календарь приступов', callback_data: 'seizure_calendar' },
-                        { text: 'Связь с врачом', callback_data: 'doctor_connection' },
+                        { text: 'Приступ', callback_data: 'start_timer_seizure' },
                     ],
                     [
-                        { text: 'Сделать запись', callback_data: 'make_record' },
-                        { text: 'Приступ', callback_data: 'start_timer_seizure' },
+                        { text: 'Связь с врачом', callback_data: 'doctor_connection' },
                     ],
                 ],
             },
