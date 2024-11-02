@@ -47,15 +47,16 @@ async function handlePatientListPageRussian(bot, chatId, messageId, data) {
             return;
         }
 
-        const result = await db.query('SELECT name FROM users WHERE doctor_key = $1', [doctorKey]);
+        const result = await db.query('SELECT u.chat_id, u.name, COUNT(m.message_id) as unread_count FROM users u LEFT JOIN messages m ON u.chat_id = m.user_id AND m.isRead = false AND m.doctor_key = $1 WHERE u.doctor_key = $1 GROUP BY u.chat_id, u.name', [doctorKey]);
         const patients = result.rows;
 
         let patientButtons = [];
 
         if (patients.length > 0) {
             for (let i = 0; i < patients.length; i++) {
+                const unreadIcon = patients[i].unread_count > 0 ? '🔴 ' : '';
                 patientButtons.push({
-                    text: patients[i].name,
+                    text: `${unreadIcon}${patients[i].name}`,
                     callback_data: `patient_${i + 1}`
                 });
             }
@@ -103,16 +104,14 @@ async function handlePatientSelectionRussian(bot, chatId, messageId, data) {
         const patientResult = await db.query('SELECT name FROM users WHERE doctor_key = $1 LIMIT 1 OFFSET $2', [doctorKey, patientIndex - 1]);
         const patientName = patientResult.rows[0]?.name;
 
-        await bot.deleteMessage(chatId, messageId);
-
-        await bot.sendMessage(chatId, `Пациент: ${patientName}`, {
+        await bot.editMessageText(`Пациент: ${patientName}`, {
+            chat_id: chatId,
+            message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [
-                        { text: 'Вернуться назад', callback_data: `patient_list_page_1` },
-                        { text: 'Непрочитанные сообщения', callback_data: `unread_messages_patient_${patientIndex}` },
-                        { text: 'История переписки', callback_data: `send_history_${patientIndex}` },
-                    ],
+                    [{ text: 'Вернуться назад', callback_data: `patient_list_page_1` }],
+                    [{ text: 'Непрочитанные сообщения', callback_data: `unread_messages_patient_${patientIndex}` }],
+                    [{ text: 'История переписки', callback_data: `send_history_${patientIndex}` }],
                 ],
             },
         });
@@ -143,7 +142,6 @@ async function handleMessageHistoryRequestRussian(bot, chatId, messageId, data) 
 
         const patient = patientResult.rows[0];
 
-        // Получаем сообщения пациентов
         const patientMessages = await db.query(`
             SELECT * FROM messages 
             WHERE doctor_key = $1 
@@ -152,7 +150,6 @@ async function handleMessageHistoryRequestRussian(bot, chatId, messageId, data) 
             ORDER BY message_date DESC
         `, [doctorKey, patient.chat_id]);
 
-        // Получаем сообщения врача
         const doctorMessages = await db.query(`
             SELECT * FROM doctors_messages 
             WHERE doctor_key = $1 
@@ -160,7 +157,6 @@ async function handleMessageHistoryRequestRussian(bot, chatId, messageId, data) 
             ORDER BY message_date DESC
         `, [doctorKey, patient.chat_id]);
 
-        // Объединяем все сообщения и сортируем по дате
         const allMessages = [...patientMessages.rows, ...doctorMessages.rows]
             .sort((a, b) => new Date(b.message_date) - new Date(a.message_date));
 
@@ -192,7 +188,6 @@ async function handleMessageHistoryRequestRussian(bot, chatId, messageId, data) 
         throw err;
     }
 }
-
 
 async function handleUnreadMessagesForPatient(bot, chatId, messageId, data) {
     try {
@@ -239,10 +234,7 @@ async function handleUnreadMessagesForPatient(bot, chatId, messageId, data) {
             messageText += `Дата: ${new Date(msg.message_date).toLocaleString()}\n`;
             messageText += msg.isFile ? `Файл: ${msg.fileName}\n` : `Сообщение: ${msg.message_text}`;
 
-            // Исправляем формирование callback_data
             const callbackData = `reply_to_${msg.message_id}_${patientIndex}_${patient.chat_id}`;
-            console.log('Сформированный callback_data:', callbackData); // Для отладки
-
             await bot.sendMessage(chatId, messageText, {
                 reply_markup: {
                     inline_keyboard: [[
@@ -267,31 +259,18 @@ async function handleUnreadMessagesForPatient(bot, chatId, messageId, data) {
 
 async function handleReplyToMessage(bot, chatId, messageId, data) {
     try {
-        console.log('Получены данные callback:', data); // Для отладки
-
-        // Правильно разбираем callback_data
         const parts = data.split('_');
-        const originalMessageId = parts[2]; // Теперь берем правильный индекс
+        const originalMessageId = parts[2];
         const patientIndex = parts[3];
         const patientChatId = parts[4];
 
-        console.log('Разобранные параметры:', {
-            originalMessageId,
-            patientIndex,
-            patientChatId
-        });
-
-        // Проверяем валидность параметров
-        if (!originalMessageId || !patientIndex || !patientChatId) {
-            throw new Error('Неверные параметры для ответа');
-        }
-
-        // Сохраняем информацию для последующей обработки ответа
         replyData.set(chatId, {
             originalMessageId,
             patientIndex,
-            userId: patientChatId // Теперь используем правильный chat_id пациента
+            userId: patientChatId
         });
+
+        waitingForReply.add(chatId);
 
         await bot.deleteMessage(chatId, messageId);
 
@@ -301,8 +280,6 @@ async function handleReplyToMessage(bot, chatId, messageId, data) {
                 selective: true
             }
         });
-
-        waitingForReply.add(chatId);
     } catch (err) {
         console.error('Ошибка при подготовке к ответу:', err);
         await bot.sendMessage(chatId, 'Произошла ошибка при подготовке к ответу. Пожалуйста, попробуйте снова.');
@@ -324,9 +301,13 @@ async function handleMarkAsRead(bot, chatId, messageId, data) {
 
 async function handleDoctorMenuReturnRussian(bot, chatId, messageId) {
     try {
+        // Удаляем сообщение с кнопками
+        await bot.deleteMessage(chatId, messageId);
+
         const doctorResult = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
         const doctorKey = doctorResult.rows[0]?.doctor_key;
 
+        // Отправляем новое сообщение с главным меню
         await showDoctorMainMenu(bot, chatId, null);
     } catch (err) {
         console.error('Ошибка при возврате в меню врача:', err);
@@ -334,7 +315,7 @@ async function handleDoctorMenuReturnRussian(bot, chatId, messageId) {
     }
 }
 
-async function handleDoctorCallbackRussian(bot, callbackQuery) {
+async function handleDoctorCallbackRussian(bot, callbackQuery ) {
     const chatId = callbackQuery.message.chat.id;
     const messageId = callbackQuery.message.message_id;
     const data = callbackQuery.data;
@@ -378,9 +359,6 @@ async function handleDoctorMessage(bot, msg) {
                 throw new Error('Информация для ответа не найдена');
             }
 
-            console.log('Обработка ответа с информацией:', replyInfo);
-
-            // Получаем doctor_key врача
             const doctorResult = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
             const doctorKey = doctorResult.rows[0]?.doctor_key;
 
@@ -388,12 +366,6 @@ async function handleDoctorMessage(bot, msg) {
                 throw new Error('Ключ врача не найден');
             }
 
-            console.log('Параметры запроса:', {
-                userId: replyInfo.userId,
-                doctorKey: doctorKey
-            });
-
-            // Проверяем существование пациента
             const patientResult = await db.query(
                 'SELECT chat_id FROM users WHERE chat_id = $1 AND doctor_key = $2',
                 [replyInfo.userId, doctorKey]
@@ -403,16 +375,13 @@ async function handleDoctorMessage(bot, msg) {
                 throw new Error('Пациент не найден');
             }
 
-            // Отправляем сообщение пациенту
             await bot.sendMessage(replyInfo.userId, `Ответ от врача:\n${messageText}`);
 
-            // Сохраняем ответ врача в таблицу doctors_messages
             await db.query(
                 'INSERT INTO doctors_messages (doctor_id, patient_id, message_text, message_date, doctor_key) VALUES ($1, $2, $3, NOW(), $4)',
                 [chatId, replyInfo.userId, messageText, doctorKey]
             );
 
-            // Помечаем исходное сообщение пациента как прочитанное
             if (replyInfo.originalMessageId) {
                 await db.query(
                     'UPDATE messages SET isRead = TRUE WHERE message_id = $1 AND user_id = $2 AND doctor_key = $3',
@@ -420,13 +389,11 @@ async function handleDoctorMessage(bot, msg) {
                 );
             }
 
-            // Очищаем состояние ожидания ответа
             waitingForReply.delete(chatId);
             replyData.delete(chatId);
 
             await bot.sendMessage(chatId, 'Ответ успешно отправлен.');
 
-            // Возвращаем кнопку для навигации обратно к пациенту
             await bot.sendMessage(chatId, 'Вернуться к пациенту', {
                 reply_markup: {
                     inline_keyboard: [[
@@ -436,20 +403,11 @@ async function handleDoctorMessage(bot, msg) {
             });
         } catch (err) {
             console.error('Ошибка при отправке ответа:', err);
-            let errorMessage = 'Произошла ошибка при отправке ответа.';
-
-            if (err.message === 'Пациент не найден') {
-                errorMessage = 'Пациент не найден в базе данных.';
-            } else if (err.message === 'Ключ врача не найден') {
-                errorMessage = 'Ключ врача не найден.';
-            } else if (err.message.includes('chat not found')) {
-                errorMessage = 'Не удалось отправить сообщение: пациент, возможно, заблокировал бота.';
-            }
-
-            await bot.sendMessage(chatId, errorMessage);
+            await bot.sendMessage(chatId, 'Произошла ошибка при отправке ответа. Пожалуйста, попробуйте снова.');
         }
     }
 }
+
 async function handleMenuCommand(bot, msg) {
     const chatId = msg.chat.id;
     try {
@@ -466,7 +424,6 @@ async function handleMenuCommand(bot, msg) {
         await bot.sendMessage(chatId, 'Произошла ошибка при обработке команды.');
     }
 }
-
 module.exports = {
     initializeDoctorOfficeRussian,
     showDoctorMainMenu,
