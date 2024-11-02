@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const doctorOfficeHandlerEnglish = require('./doctorOfficeHandlerEnglish');
 
 module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
     const chatId = callbackQuery.message.chat.id;
@@ -231,53 +232,26 @@ If you want to change the settings, use the /start command.\nYour personal profi
                 },
             });
 
-            // Confirmation of deletion of patient data and selection of the role of doctor
         } else if (data === 'confirm_doctor') {
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
 
-            // Запрашиваем врача из базы данных
             const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
-
             let doctorKey;
 
-            // Проверяем, есть ли врач и его ключ
             if (doctorCheck.rows.length === 0) {
-                // Если врача нет, генерируем уникальный ключ
-                const generateDoctorKey = () => {
-                    return Math.random().toString(36).substring(2, 10); // Генерация случайной строки из 8 символов
-                };
-
-                // Генерация уникального ключа для врача
-                doctorKey = generateDoctorKey();
-
+                doctorKey = Math.random().toString(36).substring(2, 10);
                 await db.query(
                     'INSERT INTO doctors (chat_id, language, doctor_key) VALUES ($1, $2, $3)',
                     [chatId, 'English', doctorKey]
                 );
             } else {
-                // Если врач существует, используем его ключ
                 doctorKey = doctorCheck.rows[0].doctor_key;
             }
 
-            await bot.editMessageText(`Recorded, your role: Doctor. All patient data has been deleted.`, {
-                chat_id: chatId,
-                message_id: messageId,
-            });
+            // After basic setup, pass control to doctorOfficeHandlerEnglish
+            await doctorOfficeHandlerEnglish.initializeDoctorOfficeEnglish(bot, chatId, messageId, doctorKey);
 
-            // Показываем кнопку "Список пациентов"
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Patient List', callback_data: 'patient_list_page_1' }],
-                    ],
-                },
-            };
-
-            await bot.sendMessage(chatId, `Your unique key: ${doctorKey}. Please share it with patients for connection.`);
-            await bot.sendMessage(chatId, 'Welcome to the doctor\'s cabinet!', options);
-
-
-    } else if (data === 'cancel_doctor') {
+        } else if (data === 'cancel_doctor') {
             await bot.editMessageText('Role selection canceled. Please choose your role again.', {
                 chat_id: chatId,
                 message_id: messageId,
@@ -294,91 +268,10 @@ If you want to change the settings, use the /start command.\nYour personal profi
                 },
             };
             await bot.sendMessage(chatId, 'Please choose your role:', options);
-
-        } else if (data.startsWith('patient_list_page_')) {
-            const page = parseInt(data.split('_').pop(), 10);
-            const doctorResult = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
-            const doctorKey = doctorResult.rows[0]?.doctor_key;
-
-            if (!doctorKey) {
-                await bot.sendMessage(chatId, "Error: Doctor key not found.");
-                return;
-            }
-
-            // Запрашиваем пациентов из базы данных
-            const result = await db.query('SELECT * FROM users WHERE doctor_key = $1', [doctorKey]); // Получаем список пациентов
-            const patients = result.rows;
-
-            let patientButtons = [];
-
-            // Проверяем, есть ли пациенты
-            if (patients.length > 0) {
-                // Генерация кнопок для пациентов
-                for (let i = 0; i < patients.length; i++) {
-                    const patientIndex = i + 1;
-                    patientButtons.push({ text: `Patient ${patientIndex}`, callback_data: `patient_${patientIndex}` });
-                }
-
-                // Если у врача меньше 9 пациентов, добавляем пустые кнопки
-                for (let i = patients.length; i < 9; i++) {
-                    patientButtons.push({ text: ' ', callback_data: 'no_action' }); // Заглушка
-                }
-            } else {
-                // Если нет пациентов, создаем пустые кнопки
-                for (let i = 0; i < 9; i++) {
-                    patientButtons.push({ text: 'No patients', callback_data: 'no_action' });
-                }
-            }
-
-            // Формируем строки для кнопок
-            const patientRows = [];
-            for (let i = 0; i < patientButtons.length; i += 3) {
-                patientRows.push(patientButtons.slice(i, i + 3));
-            }
-
-            // Добавление кнопок навигации
-            const navigationButtons = [
-                { text: '⬅️ Left', callback_data: page > 1 ? `patient_list_page_${page - 1}` : 'no_action' },
-                { text: 'Return to menu', callback_data: 'doctor_menu' },
-                { text: 'Right ➡️', callback_data: `patient_list_page_${page + 1}` },
-            ];
-
-            // Добавляем навигационные кнопки в массив
-            patientRows.push(navigationButtons);
-
-            await bot.editMessageText(`Here is the list of your patients:`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: patientRows,
-                },
-            });
-
-        } else if (data.startsWith('patient_')) {
-            const patientIndex = data.split('_')[1];
-            await bot.editMessageText(`Patient: Patient ${patientIndex}`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: 'Go back', callback_data: `patient_list_page_${1}` }, // Возвращаемся на первую страницу списка пациентов
-                            { text: 'Send message history with patient', callback_data: `send_history_${patientIndex}` },
-                        ],
-                    ],
-                },
-            });
-        } else if (data === 'doctor_menu') {
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Patient List', callback_data: 'patient_list_page_1' }],
-                    ],
-                },
-            };
-            await bot.sendMessage(chatId, 'You returned to the doctor\'s menu.', options);
+        } else {
+            // Pass other callback queries to the doctor's office handler
+            await doctorOfficeHandlerEnglish.handleDoctorCallbackEnglish(bot, callbackQuery);
         }
-
     } catch (err) {
         console.error('Error while handling callback query:', err);
     }

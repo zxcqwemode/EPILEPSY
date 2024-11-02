@@ -19,6 +19,14 @@ const {
     handleUnreadMessagesForPatient
 } = require('./handlers/doctorOfficeHandlerRussian');
 
+const {
+    handleDoctorMessageEnglish,
+    handleMenuCommandEnglish,
+    handleDoctorCallbackEnglish,
+    handleUnreadMessagesForPatientEnglish
+} = require('./handlers/doctorOfficeHandlerEnglish');
+
+
 const NotificationHandlersRussian = require('./cabinet/notificationHandler/notificationHandlersRussian');
 const NotificationHandlersEnglish = require('./cabinet/notificationHandler/notificationHandlersEnglish');
 
@@ -202,8 +210,17 @@ initializeDatabase().then(() => {
     });
 
     bot.onText(/\/menu/, async (msg) => {
+        const chatId = msg.chat.id;
         try {
-            await handleMenuCommand(bot, msg);
+            const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
+            if (doctorResult.rows.length > 0) {
+                const doctorLanguage = doctorResult.rows[0].language;
+                if (doctorLanguage === 'English') {
+                    await handleMenuCommandEnglish(bot, msg);
+                } else {
+                    await handleMenuCommand(bot, msg);
+                }
+            }
         } catch (error) {
             console.error('Ошибка при обработке команды /menu:', error);
         }
@@ -221,10 +238,18 @@ initializeDatabase().then(() => {
         const isDoctor = doctorResult.rows.length > 0;
 
         if (isDoctor) {
-            // Если отправитель - врач, используем обработчик сообщений врача
-            await handleDoctorMessage(bot, msg);
+            const doctorLanguage = doctorResult.rows[0].language;
+
+            if (doctorLanguage === 'English') {
+                await handleDoctorMessageEnglish(bot, msg);
+            } else {
+                await handleDoctorMessage(bot, msg);
+            }
         } else {
-            // Если обычный пользователь, используем существующую логику
+            // Существующая логика для обычных пользователей
+            const userResult = await db.query('SELECT language FROM users WHERE chat_id = $1', [chatId]);
+            const userLanguage = userResult.rows[0]?.language;
+
             if (userLanguage === 'English') {
                 await doctorHandlerEnglish.handleMessageEnglish(msg);
             } else {
@@ -254,8 +279,12 @@ initializeDatabase().then(() => {
         const isDoctor = doctorResult.rows.length > 0;
 
         if (isDoctor) {
-            // Если это врач, используем обработчик callback'ов врача
-            await handleDoctorCallbackRussian(bot, callbackQuery);
+            const doctorLanguage = doctorResult.rows[0].language;
+            if (doctorLanguage === 'English') {
+                await handleDoctorCallbackEnglish(bot, callbackQuery);
+            } else {
+                await handleDoctorCallbackRussian(bot, callbackQuery);
+            }
             return;
         }
 
@@ -279,8 +308,17 @@ initializeDatabase().then(() => {
             }
 
         } else if (data.startsWith('unread_messages_patient_')) {
-            const messageId = callbackQuery.message.message_id;
-            await handleUnreadMessagesForPatient(bot, chatId, messageId, data);
+            const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
+            if (doctorResult.rows.length > 0) {
+                const doctorLanguage = doctorResult.rows[0].language;
+                const messageId = callbackQuery.message.message_id;
+
+                if (doctorLanguage === 'English') {
+                    await handleUnreadMessagesForPatientEnglish(bot, chatId, messageId, data);
+                } else {
+                    await handleUnreadMessagesForPatient(bot, chatId, messageId, data);
+                }
+            }
 
         } else if (data.startsWith('start_timer_seizure')) {
             const userLanguage = userLanguages[chatId] || 'Русский';
