@@ -58,6 +58,13 @@ const initializeDatabase = async () => {
         );
     `;
 
+    const checkDoctorsMessagesTable = `
+        SELECT EXISTS (
+            SELECT FROM pg_tables 
+            WHERE tablename = 'doctors_messages'
+        );
+    `;
+
     const checkMessagesTable = `
         SELECT EXISTS (
             SELECT FROM pg_tables 
@@ -70,6 +77,12 @@ const initializeDatabase = async () => {
         WHERE table_name = 'calendar'
     );
 `);
+
+    const usersTableExists = await db.query(checkUsersTable);
+    const doctorsTableExists = await db.query(checkDoctorsTable);
+    const messagesTableExists = await db.query(checkMessagesTable);
+    const doctorsMessagesTableExists = await db.query(checkDoctorsMessagesTable);
+
     if (!calendarTableExists.rows[0].exists) {
         const createCalendarTable = `
         CREATE TABLE calendar (
@@ -90,9 +103,6 @@ const initializeDatabase = async () => {
         await db.query(createCalendarTable);
         console.log("Таблица 'calendar' была создана.");
     }
-    const usersTableExists = await db.query(checkUsersTable);
-    const doctorsTableExists = await db.query(checkDoctorsTable);
-    const messagesTableExists = await db.query(checkMessagesTable);
 
     // Если таблицы не существуют, создаем их
     if (!usersTableExists.rows[0].exists) {
@@ -115,6 +125,22 @@ const initializeDatabase = async () => {
         await db.query(createUsersTable);
         console.log("Таблица 'users' была создана.");
     }
+
+    if (!doctorsMessagesTableExists.rows[0].exists) {
+        const createDoctorsMessagesTable = `
+            CREATE TABLE doctors_messages (
+                message_id SERIAL PRIMARY KEY,
+                doctor_id BIGINT,
+                patient_id BIGINT,
+                message_text TEXT,
+                message_date TIMESTAMP DEFAULT NOW(),
+                doctor_key VARCHAR(50)
+            );
+        `;
+        await db.query(createDoctorsMessagesTable);
+        console.log("Таблица 'doctors_messages' была создана.");
+    }
+
     if (!doctorsTableExists.rows[0].exists) {
         const createDoctorsTable = `
             CREATE TABLE doctors (
