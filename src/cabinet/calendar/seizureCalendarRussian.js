@@ -87,11 +87,12 @@ async function seizureCalendarRussian(bot, chatId, messageId, monthOffset = 0, s
         if (selectedDay) {
             const selectedDate = new Date(currentYear, currentMonth, selectedDay);
             const monthGenitive = selectedDate.toLocaleString('ru-RU', { month: 'long' }).replace(/(ь|й|т)$/, 'я').replace(/(а|е)$/, 'а');
+            const tt = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}`;
 
             inlineKeyboard.push([
                 {
                     text: `Сделать запись на ${selectedDay} ${monthGenitive}`,
-                    callback_data: `start_record_${selectedDate.toISOString().split('T')[0]}`
+                    callback_data: `start_record_${tt}`
                 }
             ]);
         }
@@ -126,13 +127,16 @@ async function handleChangeMonthRussian(bot, chatId, monthOffset, messageId) {
 async function startRecordingRussian(bot, chatId, date, messageId) {
     const dateObject = new Date(date);
 
+    const selectedDate = new Date(date);
+
     // Форматируем дату напрямую, без манипуляций с часовым поясом
-    const formattedDate = date; // date уже приходит в формате YYYY-MM-DD
+    const formattedDate = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}-${selectedDate.getDate().toString().padStart(2, '0')}`;
+
 
     try {
         await db.query(
             `INSERT INTO calendar (user_id, date, created_at) VALUES ($1, $2, $3) ON CONFLICT (user_id, date) DO NOTHING`,
-            [chatId, formattedDate, new Date()]
+            [chatId, date, new Date()]
         );
 
         await bot.deleteMessage(chatId, messageId);
@@ -469,9 +473,7 @@ async function startRecordingRussian(bot, chatId, date, messageId) {
             } catch (error) {
                 bot.removeListener('callback_query', callbackHandlerRussian);
                 console.error('Error in callback handler:', error);
-                // await bot.sendMessage(chatId,
-                //     'Произошла ошибка при сохранении данных. Пожалуйста, попробуйте еще раз.'
-                // );
+
             }
         };
 

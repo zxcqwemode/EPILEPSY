@@ -233,7 +233,10 @@ If you want to change the settings, use the /start command.\nYour personal profi
             });
 
         } else if (data === 'confirm_doctor') {
+            await db.query('DELETE FROM messages WHERE user_id = $1', [chatId]);
+            await db.query('DELETE FROM calendar WHERE user_id = $1', [chatId]);
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
+
 
             const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
             let doctorKey;

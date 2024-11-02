@@ -90,23 +90,26 @@ class DoctorPatientHandlerEnglish {
 
     async handleViewMessagesEnglish(chatId) {
         const messages = await db.query(`
-            SELECT m.*, u.name 
-            FROM messages m 
-            JOIN users u ON m.user_id = u.chat_id 
-            WHERE user_id = $1 
-            ORDER BY message_date DESC
-        `, [chatId]);
+        SELECT message_text, message_date, 'You' AS sender
+        FROM messages
+        WHERE user_id = $1
+        
+        UNION ALL
+        
+        SELECT message_text, message_date, 'Doctor' AS sender
+        FROM doctors_messages
+        WHERE patient_id = $1
+        
+        ORDER BY message_date DESC
+    `, [chatId]);
 
         let messageText = "";
         if (messages.rows.length > 0) {
-            messageText = "Conversation history:\n\n";
+            messageText = "Message history:\n\n";
             for (const msg of messages.rows) {
-                messageText += `${msg.name} (${new Date(msg.message_date).toLocaleString()}):\n`;
+                messageText += `${msg.sender} (${new Date(msg.message_date).toLocaleString()}):\n`;
                 if (msg.message_text) {
                     messageText += `${msg.message_text}\n`;
-                }
-                if (msg.isFile) {
-                    messageText += `[File: ${msg.fileName}]\n`;
                 }
                 messageText += '\n';
             }
@@ -117,11 +120,12 @@ class DoctorPatientHandlerEnglish {
         await this.bot.sendMessage(chatId, messageText, {
             reply_markup: {
                 inline_keyboard: [
-                    [{text: 'Back', callback_data: 'doctor_connection'}]
+                    [{ text: 'Back', callback_data: 'doctor_connection' }]
                 ]
             }
         });
     }
+
 
     async handleSendTextMessageEnglish(chatId) {
         this.waitingForMessage.add(chatId);

@@ -395,9 +395,16 @@ initializeDatabase().then(() => {
 
         } else if (data.startsWith('start_record_')) {
             const dateString = data.split('_')[2];
-            const date = dateString.split('T')[0];
+            const date = dateString;
             const messageId = callbackQuery.message.message_id;
-            await startRecordingRussian(bot, chatId, date, messageId);
+            const userLanguage = userLanguages[chatId] || 'Русский';
+
+            if (userLanguage === 'English') {
+                await startRecordingEnglish(bot, chatId, date, messageId);
+            } else {
+                await startRecordingRussian(bot, chatId, date, messageId);
+            }
+
 
         } else {
             const userLanguage = userLanguages[chatId] || 'Русский';

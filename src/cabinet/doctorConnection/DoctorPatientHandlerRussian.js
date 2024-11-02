@@ -90,23 +90,26 @@ class DoctorPatientHandlerRussian {
 
     async handleViewMessagesRussian(chatId) {
         const messages = await db.query(`
-            SELECT m.*, u.name 
-            FROM messages m 
-            JOIN users u ON m.user_id = u.chat_id 
-            WHERE user_id = $1 
-            ORDER BY message_date DESC
-        `, [chatId]);
+        SELECT message_text, message_date, 'Вы' AS sender
+        FROM messages
+        WHERE user_id = $1
+        
+        UNION ALL
+        
+        SELECT message_text, message_date, 'Врач' AS sender
+        FROM doctors_messages
+        WHERE patient_id = $1
+        
+        ORDER BY message_date DESC
+    `, [chatId]);
 
         let messageText = "";
         if (messages.rows.length > 0) {
             messageText = "История переписки:\n\n";
             for (const msg of messages.rows) {
-                messageText += `${msg.name} (${new Date(msg.message_date).toLocaleString()}):\n`;
+                messageText += `${msg.sender} (${new Date(msg.message_date).toLocaleString()}):\n`;
                 if (msg.message_text) {
                     messageText += `${msg.message_text}\n`;
-                }
-                if (msg.isFile) {
-                    messageText += `[Файл: ${msg.fileName}]\n`;
                 }
                 messageText += '\n';
             }
@@ -117,11 +120,12 @@ class DoctorPatientHandlerRussian {
         await this.bot.sendMessage(chatId, messageText, {
             reply_markup: {
                 inline_keyboard: [
-                    [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    [{ text: 'Назад', callback_data: 'doctor_connection' }]
                 ]
             }
         });
     }
+
 
     async handleSendTextMessageRussian(chatId) {
         this.waitingForMessage.add(chatId);
