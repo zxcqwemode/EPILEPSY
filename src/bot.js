@@ -123,11 +123,13 @@ const initializeDatabase = async () => {
             CREATE TABLE messages (
                 message_id SERIAL PRIMARY KEY,       
                 user_id BIGINT NOT NULL,
-                doctor_key VARCHAR(50) NOT NULL,
-                file_id TEXT,
-                file_type TEXT,
-                message_text TEXT NOT NULL,
+                doctor_key VARCHAR(50) NOT NULL,            
+                message_text TEXT,
                 message_date TIMESTAMP DEFAULT NOW(),
+                isFile BOOLEAN,
+                fileName VARCHAR(255),
+                filePath VARCHAR(255),
+                isRead BOOLEAN,
                 FOREIGN KEY (user_id) REFERENCES users (chat_id)
             );
         `;
@@ -143,8 +145,7 @@ const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
 const doctorHandlerRussian = new DoctorPatientHandlerRussian(bot);
 const doctorHandlerEnglish = new DoctorPatientHandlerEnglish(bot);
 const handler = new DoctorPatientHandlerRussian(bot);
-await handler.init();
-
+const handlerEnglish = new DoctorPatientHandlerEnglish(bot);
 seizureRussian.setupCallbackHandler(bot);
 seizureEnglish.setupCallbackHandler(bot);
 
@@ -156,6 +157,7 @@ initializeDatabase().then(() => {
     });
 
     scheduleNotifications(bot);
+
 
     bot.onText(/\/myProfile/, (msg) => {
         handleMyProfileCommand(bot, msg);
@@ -197,11 +199,8 @@ initializeDatabase().then(() => {
         const userResult = await db.query('SELECT language FROM users WHERE chat_id = $1', [chatId]);
         const userLanguage = userResult.rows[0]?.language;
 
-        // Инициализация userMessageIds
-        // if (!bot.userMessageIds) {
-        //     bot.userMessageIds = {};
-        // }
-
+        await handler.init();
+        await handlerEnglish.initEnglish();
         //Проверяем, выбрал ли пользователь язык
         if (data === 'language_russian' || data === 'language_english') {
             await handleLanguageSelection(bot, callbackQuery);
@@ -213,7 +212,10 @@ initializeDatabase().then(() => {
             data === 'view_messages' ||
             data === 'send_message' ||
             data === 'change_doctor' ||
-            data === 'retry_key') {
+            data === 'retry_key' ||
+            data === 'choose_message_type' ||
+            data === 'send_text_message' ||
+            data === 'send_file') {
             if (userLanguage === 'English') {
                 await doctorHandlerEnglish.handleCallbackEnglish(callbackQuery);
             } else {
@@ -221,6 +223,7 @@ initializeDatabase().then(() => {
             }
             return;
         }
+
 
         // Находим этот блок в существующем коде
         else if (data.startsWith('start_timer_seizure')){

@@ -11,6 +11,7 @@
   "license": "ISC",
   "description": "git clone https://github.com/hmmrfll/EPILEPSY.git     npm install",
   "dependencies": {
+    "axios": "^1.7.7",
     "dotenv": "^16.4.5",
     "fs": "^0.0.1-security",
     "node-cron": "^3.0.3",

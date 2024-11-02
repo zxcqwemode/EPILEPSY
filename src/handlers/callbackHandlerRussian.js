@@ -363,7 +363,7 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                         ],
                     ],
                 },
-            });
+            });np
         } else if (data === 'doctor_menu') {
             const options = {
                 reply_markup: {

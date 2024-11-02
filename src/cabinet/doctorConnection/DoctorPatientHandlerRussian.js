@@ -1,4 +1,7 @@
 const db = require('../../config/db');
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
 
 class DoctorPatientHandlerRussian {
     constructor(bot) {
@@ -6,9 +9,7 @@ class DoctorPatientHandlerRussian {
         this.waitingForKey = new Set();
         this.waitingForName = new Set();
         this.waitingForMessage = new Set();
-        this.waitingForAttachment = new Set(); // Для ожидания прикрепления файла
-        this.messageBuffer = new Map(); // Буфер для хранения составных сообщений
-
+        this.waitingForFile = new Set();
     }
 
     async handleDoctorConnectionRussian(chatId) {
@@ -27,9 +28,21 @@ class DoctorPatientHandlerRussian {
             reply_markup: {
                 inline_keyboard: [
                     [{text: 'История сообщений', callback_data: 'view_messages'}],
-                    [{text: 'Написать сообщение', callback_data: 'send_message'}],
+                    [{text: 'Отправить сообщение', callback_data: 'choose_message_type'}],
                     [{text: 'Сменить врача', callback_data: 'change_doctor'}],
                     [{text: 'Назад в профиль', callback_data: 'back_to_profile'}]
+                ]
+            }
+        });
+    }
+
+    async showMessageTypeChoiceRussian(chatId) {
+        await this.bot.sendMessage(chatId, "Выберите тип сообщения:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Отправить текстовое сообщение', callback_data: 'send_text_message'}],
+                    [{text: 'Отправить файл', callback_data: 'send_file'}],
+                    [{text: 'Назад', callback_data: 'doctor_connection'}]
                 ]
             }
         });
@@ -92,9 +105,8 @@ class DoctorPatientHandlerRussian {
                 if (msg.message_text) {
                     messageText += `${msg.message_text}\n`;
                 }
-                if (msg.file_id) {
-                    const fileTypeText = msg.file_type === 'photo' ? 'Фото' : 'Файл';
-                    messageText += `[Прикреплён ${fileTypeText}]\n`;
+                if (msg.isFile) {
+                    messageText += `[Файл: ${msg.fileName}]\n`;
                 }
                 messageText += '\n';
             }
@@ -111,114 +123,185 @@ class DoctorPatientHandlerRussian {
         });
     }
 
-
-    getFileTypeText(fileType) {
-        switch (fileType) {
-            case 'photo':
-                return 'фото';
-            case 'document':
-                return 'файл';
-            default:
-                return 'файл';
-        }
-    }
-
-    async handleSendMessageRussian(chatId) {
+    async handleSendTextMessageRussian(chatId) {
         this.waitingForMessage.add(chatId);
-        this.waitingForAttachment.add(chatId);
-
-        this.messageBuffer.set(chatId, {
-            text: null,
-            files: []
-        });
-
-        await this.bot.sendMessage(chatId,
-            "Напишите ваше сообщение и/или отправьте файл/фото.\n" +
-            "Вы можете:\n" +
-            "1. Отправить только текст\n" +
-            "2. Отправить только файл/фото\n" +
-            "3. Отправить текст и затем файл/фото\n" +
-            "Можно прикрепить несколько файлов.\n" +
-            "После отправки всего необходимого, нажмите 'Завершить':", {
+        const message = await this.bot.sendMessage(chatId,
+            "Напишите ваше сообщение:", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{text: 'Завершить', callback_data: 'finish_message'}],
                         [{text: 'Отменить', callback_data: 'doctor_connection'}]
                     ]
                 }
             });
+        // Сохраняем ID сообщения для последующего удаления клавиатуры
+        this.messageToEdit = message.message_id;
     }
 
-
-    async handleMessageInputRussian(chatId, messageText, fileId = null, fileType = null) {
-        if (!this.waitingForMessage.has(chatId) && !this.waitingForAttachment.has(chatId)) return;
-
-        let messageBuffer = this.messageBuffer.get(chatId) || { text: null, files: [] };
-
-        if (messageText) {
-            messageBuffer.text = messageText;
-        }
-
-        if (fileId && fileType) {
-            messageBuffer.files.push({ fileId, fileType });
-        }
-
-        this.messageBuffer.set(chatId, messageBuffer);
-
-        if (fileId) {
-            const fileTypeText = fileType === 'photo' ? 'Фото' : 'Файл';
-            await this.bot.sendMessage(chatId, `${fileTypeText} успешно прикреплен. Можете прикрепить еще или нажать "Завершить"`);
-        }
+    async handleSendFileRussian(chatId) {
+        this.waitingForFile.add(chatId);
+        const message = await this.bot.sendMessage(chatId,
+            "Отправьте файл (документ, фото, видео и т.д.):", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Отменить', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        // Сохраняем ID сообщения для последующего удаления клавиатуры
+        this.messageToEdit = message.message_id;
     }
 
-    async handleFinishMessageRussian(chatId) {
-        const messageBuffer = this.messageBuffer.get(chatId);
-        if (!messageBuffer) return;
+    async saveFile(fileId, originalName) {
+        const file = await this.bot.getFile(fileId);
+        const filePath = file.file_path;
+        const fileUrl = `https://api.telegram.org/file/bot${this.bot.token}/${filePath}`;
 
-        const userResult = await db.query('SELECT doctor_key, name FROM users WHERE chat_id = $1', [chatId]);
-        if (userResult.rows.length > 0) {
-            const {doctor_key, name} = userResult.rows[0];
+        // Создаем уникальное имя файла
+        const timestamp = Date.now();
+        const fileExtension = path.extname(originalName);
+        const fileName = `${timestamp}${fileExtension}`;
+        const localFilePath = path.join('public', fileName);
+
+        // Скачиваем файл
+        const response = await axios({
+            method: 'get',
+            url: fileUrl,
+            responseType: 'stream'
+        });
+
+        // Сохраняем файл
+        const writer = fs.createWriteStream(localFilePath);
+        response.data.pipe(writer);
+
+        return new Promise((resolve, reject) => {
+            writer.on('finish', () => resolve({ fileName, filePath: localFilePath }));
+            writer.on('error', reject);
+        });
+    }
+
+    async handleFileMessageRussian(chatId, msg) {
+        if (!this.waitingForFile.has(chatId)) return;
+
+        // Удаляем клавиатуру с кнопкой "Отменить"
+        if (this.messageToEdit) {
+            try {
+                await this.bot.editMessageReplyMarkup(
+                    { inline_keyboard: [] },
+                    {
+                        chat_id: chatId,
+                        message_id: this.messageToEdit
+                    }
+                );
+            } catch (error) {
+                console.error('Error removing keyboard:', error);
+            }
+        }
+
+        let fileId, originalName;
+
+        if (msg.document) {
+            fileId = msg.document.file_id;
+            originalName = msg.document.file_name;
+        } else if (msg.photo) {
+            fileId = msg.photo[msg.photo.length - 1].file_id;
+            originalName = 'photo.jpg';
+        } else if (msg.video) {
+            fileId = msg.video.file_id;
+            originalName = msg.video.file_name || 'video.mp4';
+        } else {
+            await this.bot.sendMessage(chatId, "Формат файла не поддерживается.");
+            return;
+        }
+
+        try {
+            const userResult = await db.query('SELECT doctor_key, name FROM users WHERE chat_id = $1', [chatId]);
+            const { doctor_key, name } = userResult.rows[0];
+
+            const { fileName, filePath } = await this.saveFile(fileId, originalName);
+
+            await db.query(
+                'INSERT INTO messages (user_id, doctor_key, message_date, isFile, fileName, filePath, isRead) VALUES ($1, $2, NOW(), TRUE, $3, $4, FALSE)',
+                [chatId, doctor_key, fileName, filePath]
+            );
 
             const doctorResult = await db.query('SELECT chat_id FROM doctors WHERE doctor_key = $1', [doctor_key]);
             const doctorChatId = doctorResult.rows[0]?.chat_id;
 
             if (doctorChatId) {
-                if (messageBuffer.text) {
-                    await db.query(
-                        'INSERT INTO messages (user_id, doctor_key, message_text, message_date) VALUES ($1, $2, $3, NOW())',
-                        [chatId, doctor_key, messageBuffer.text]
-                    );
-                    await this.bot.sendMessage(doctorChatId, `Сообщение от ${name}:\n${messageBuffer.text}`);
-                }
-
-                for (const file of messageBuffer.files) {
-                    await db.query(
-                        'INSERT INTO messages (user_id, doctor_key, file_id, file_type, message_date) VALUES ($1, $2, $3, $4, NOW())',
-                        [chatId, doctor_key, file.fileId, file.fileType]
-                    );
-
-                    const caption = `${file.fileType === 'photo' ? 'Фото' : 'Файл'} от ${name}`;
-
-                    if (file.fileType === 'photo') {
-                        await this.bot.sendPhoto(doctorChatId, file.fileId, { caption });
-                    } else {
-                        await this.bot.sendDocument(doctorChatId, file.fileId, { caption });
-                    }
+                if (msg.document) {
+                    await this.bot.sendDocument(doctorChatId, fileId, { caption: `Файл от ${name}` });
+                } else if (msg.photo) {
+                    await this.bot.sendPhoto(doctorChatId, fileId, { caption: `Фото от ${name}` });
+                } else if (msg.video) {
+                    await this.bot.sendVideo(doctorChatId, fileId, { caption: `Видео от ${name}` });
                 }
             }
+
+            this.waitingForFile.delete(chatId);
+            this.messageToEdit = null;
+            await this.bot.sendMessage(chatId, "Файл успешно отправлен", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Отправить еще', callback_data: 'choose_message_type'}],
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error('Error handling file:', error);
+            await this.bot.sendMessage(chatId, "Произошла ошибка при отправке файла. Попробуйте еще раз.");
         }
-        this.messageBuffer.delete(chatId);
-        this.waitingForMessage.delete(chatId);
-        this.waitingForAttachment.delete(chatId);
+    }
 
-        await this.bot.sendMessage(chatId, "Сообщение отправлено", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{text: 'Написать еще', callback_data: 'send_message'}],
-                    [{text: 'Назад', callback_data: 'doctor_connection'}]
-                ]
+
+    async handleTextMessageRussian(chatId, messageText) {
+        if (!this.waitingForMessage.has(chatId)) return;
+
+        try {
+            // Удаляем клавиатуру с кнопкой "Отменить"
+            if (this.messageToEdit) {
+                try {
+                    await this.bot.editMessageReplyMarkup(
+                        { inline_keyboard: [] },
+                        {
+                            chat_id: chatId,
+                            message_id: this.messageToEdit
+                        }
+                    );
+                } catch (error) {
+                    console.error('Error removing keyboard:', error);
+                }
             }
-        });
+
+            const userResult = await db.query('SELECT doctor_key, name FROM users WHERE chat_id = $1', [chatId]);
+            const { doctor_key, name } = userResult.rows[0];
+
+            await db.query(
+                'INSERT INTO messages (user_id, doctor_key, message_text, message_date, isFile, isRead) VALUES ($1, $2, $3, NOW(), FALSE, FALSE)',
+                [chatId, doctor_key, messageText]
+            );
+
+            const doctorResult = await db.query('SELECT chat_id FROM doctors WHERE doctor_key = $1', [doctor_key]);
+            const doctorChatId = doctorResult.rows[0]?.chat_id;
+
+            if (doctorChatId) {
+                await this.bot.sendMessage(doctorChatId, `Сообщение от ${name}:\n${messageText}`);
+            }
+
+            this.waitingForMessage.delete(chatId);
+            this.messageToEdit = null;
+            await this.bot.sendMessage(chatId, "Сообщение отправлено", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Отправить еще', callback_data: 'choose_message_type'}],
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error('Error sending message:', error);
+            await this.bot.sendMessage(chatId, "Произошла ошибка при отправке сообщения. Попробуйте еще раз.");
+        }
     }
 
     async handleChangeDoctorRussian(chatId) {
@@ -240,19 +323,10 @@ class DoctorPatientHandlerRussian {
             await this.handleKeyInputRussian(chatId, messageText);
         } else if (this.waitingForName.has(chatId)) {
             await this.handleNameInputRussian(chatId, messageText);
-        } else if (this.waitingForMessage.has(chatId) || this.waitingForAttachment.has(chatId)) {
-            if (messageText) {
-                await this.handleMessageInputRussian(chatId, messageText);
-            }
-
-            if (msg.photo) {
-                const fileId = msg.photo[msg.photo.length - 1].file_id;
-                await this.handleMessageInputRussian(chatId, null, fileId, 'photo');
-            }
-
-            if (msg.document) {
-                await this.handleMessageInputRussian(chatId, null, msg.document.file_id, 'document');
-            }
+        } else if (this.waitingForMessage.has(chatId)) {
+            await this.handleTextMessageRussian(chatId, messageText);
+        } else if (this.waitingForFile.has(chatId)) {
+            await this.handleFileMessageRussian(chatId, msg);
         }
     }
 
@@ -260,7 +334,7 @@ class DoctorPatientHandlerRussian {
         return this.waitingForKey.has(chatId) ||
             this.waitingForName.has(chatId) ||
             this.waitingForMessage.has(chatId) ||
-            this.waitingForAttachment.has(chatId);
+            this.waitingForFile.has(chatId);
     }
 
     async handleCallbackRussian(callbackQuery) {
@@ -290,17 +364,20 @@ class DoctorPatientHandlerRussian {
             case 'view_messages':
                 await this.handleViewMessagesRussian(chatId);
                 break;
-            case 'send_message':
-                await this.handleSendMessageRussian(chatId);
+            case 'choose_message_type':
+                await this.showMessageTypeChoiceRussian(chatId);
+                break;
+            case 'send_text_message':
+                await this.handleSendTextMessageRussian(chatId);
+                break;
+            case 'send_file':
+                await this.handleSendFileRussian(chatId);
                 break;
             case 'change_doctor':
                 await this.handleChangeDoctorRussian(chatId);
                 break;
             case 'retry_key':
                 await this.requestDoctorKeyRussian(chatId);
-                break;
-            case 'finish_message':
-                await this.handleFinishMessageRussian(chatId);
                 break;
         }
 
@@ -309,6 +386,49 @@ class DoctorPatientHandlerRussian {
         } catch (error) {
             console.error('Error answering callback query:', error);
         }
+    }
+
+    async checkAndCreatePublicFolder() {
+        const publicPath = path.join(process.cwd(), 'public');
+        if (!fs.existsSync(publicPath)) {
+            try {
+                fs.mkdirSync(publicPath, { recursive: true });
+                console.log('Created public folder for file storage');
+            } catch (error) {
+                console.error('Error creating public folder:', error);
+                throw new Error('Failed to create public folder for file storage');
+            }
+        }
+    }
+
+    async init() {
+        try {
+            await this.checkAndCreatePublicFolder();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            throw error;
+        }
+    }
+
+    // Метод для очистки состояний ожидания
+    clearWaitingStates(chatId) {
+        this.waitingForKey.delete(chatId);
+        this.waitingForName.delete(chatId);
+        this.waitingForMessage.delete(chatId);
+        this.waitingForFile.delete(chatId);
+    }
+
+    // Метод для обработки ошибок и отправки сообщения пользователю
+    async handleError(chatId, error, errorMessage = "Произошла ошибка. Попробуйте еще раз.") {
+        console.error('Error:', error);
+        this.clearWaitingStates(chatId);
+        await this.bot.sendMessage(chatId, errorMessage, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Назад', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
     }
 }
 
