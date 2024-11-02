@@ -220,8 +220,8 @@ class DoctorPatientHandlerRussian {
             const { fileName, filePath } = await this.saveFile(fileId, originalName);
 
             await db.query(
-                'INSERT INTO messages (user_id, doctor_key, message_date, isFile, fileName, filePath, isRead) VALUES ($1, $2, NOW(), TRUE, $3, $4, FALSE)',
-                [chatId, doctor_key, fileName, filePath]
+                'INSERT INTO messages (user_id, doctor_key, message_date, isFile, fileName, filePath, isRead, sender_type) VALUES ($1, $2, NOW(), TRUE, $3, $4, FALSE, $5)',
+                [chatId, doctor_key, fileName, filePath, 'patient']
             );
 
             const doctorResult = await db.query('SELECT chat_id FROM doctors WHERE doctor_key = $1', [doctor_key]);
@@ -277,8 +277,8 @@ class DoctorPatientHandlerRussian {
             const { doctor_key, name } = userResult.rows[0];
 
             await db.query(
-                'INSERT INTO messages (user_id, doctor_key, message_text, message_date, isFile, isRead) VALUES ($1, $2, $3, NOW(), FALSE, FALSE)',
-                [chatId, doctor_key, messageText]
+                'INSERT INTO messages (user_id, doctor_key, message_text, message_date, isFile, isRead, sender_type) VALUES ($1, $2, $3, NOW(), FALSE, FALSE, $4)',
+                [chatId, doctor_key, messageText, 'patient']
             );
 
             const doctorResult = await db.query('SELECT chat_id FROM doctors WHERE doctor_key = $1', [doctor_key]);

@@ -1,4 +1,6 @@
+// callbackHandlerRussian.js
 const db = require('../config/db');
+const doctorOfficeHandlerRussian = require('./doctorOfficeHandlerRussian');
 
 module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
     const chatId = callbackQuery.message.chat.id;
@@ -7,16 +9,12 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
     try {
         if (data === 'role_patient') {
             const doctorLanguageResult = await db.query('SELECT language FROM doctors WHERE chat_id = $1', [chatId]);
-            const language = doctorLanguageResult.rows.length > 0 ? doctorLanguageResult.rows[0].language : 'Русский'; // Если языка нет, устанавливаем по умолчанию
+            const language = doctorLanguageResult.rows.length > 0 ? doctorLanguageResult.rows[0].language : 'Русский';
 
-            // Удаляем врача из таблицы doctors
             await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
-
-            // Вставляем пользователя в таблицу users с языком
             await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
-
-            // Обновляем шаг пользователя в таблице users
             await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['gender_choice', chatId]);
+
             await bot.editMessageText(`Записал, ваша роль: Пациент.`, {
                 chat_id: chatId,
                 message_id: messageId,
@@ -34,7 +32,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             };
             bot.sendMessage(chatId, 'Ваш пол?', options);
 
-
         } else if (data === 'gender_male' || data === 'gender_female') {
             const gender = data === 'gender_male' ? 'Мужской' : 'Женский';
 
@@ -45,7 +42,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 message_id: messageId,
             });
 
-            // Запрос на выбор часового пояса
             const options = {
                 reply_markup: {
                     inline_keyboard: [
@@ -89,11 +85,8 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
 
         } else if (data.startsWith('tz_msk_')) {
             const timezoneOffsetMsk = parseInt(data.split('_')[2]);
-
-            // Рассчитываем разницу с GMT (МСК = GMT+3)
             const timezoneOffsetGmt = timezoneOffsetMsk + 3;
 
-            // Сохраняем часовой пояс пользователя в формате GMT
             await db.query('UPDATE users SET timezone_gmt = $1, step = $2 WHERE chat_id = $3', [timezoneOffsetGmt, 'notification_period', chatId]);
 
             await bot.editMessageText(`Ваш часовой пояс: GMT${timezoneOffsetGmt >= 0 ? '+' : ''}${timezoneOffsetGmt}`, {
@@ -101,7 +94,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 message_id: messageId,
             });
 
-            // Запрос на время уведомлений
             const options = {
                 reply_markup: {
                     inline_keyboard: [
@@ -125,7 +117,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 message_id: messageId,
             });
 
-            // Логика выбора конкретного часа для уведомлений в выбранный период
             let hoursOptions = [];
             if (time === 'Утром') {
                 hoursOptions = [
@@ -156,7 +147,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 ];
             }
 
-            // Добавляем кнопки для смены периода
             const changePeriodOptions = [];
             if (time === 'Утром') {
                 changePeriodOptions.push(
@@ -175,7 +165,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 );
             }
 
-            // Формируем кнопки для выбора времени
             const hourOptions = {
                 reply_markup: {
                     inline_keyboard: [
@@ -185,7 +174,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 },
             };
 
-            // Сообщение с кнопками выбора часа и изменения периода
             bot.sendMessage(chatId, 'Отлично, выберите точное время для уведомлений:', hourOptions);
 
         } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
@@ -195,13 +183,10 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             const timezoneOffsetGmt = user.rows[0].timezone_gmt;
 
             const hourMsk = hour - timezoneOffsetGmt + 3;
-            // Сохраняем выбранный час
             await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hourMsk, chatId]);
 
-            // Рассчитываем время в GMT
             const gmtHour = (parseInt(hour) - timezoneOffsetGmt + 24) % 24;
 
-            // Сохраняем время в формате GMT
             await db.query('UPDATE users SET notification_hour_gmt = $1 WHERE chat_id = $2', [gmtHour, chatId]);
             await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['registered', chatId])
             await bot.editMessageText(`Записал ваше время: ${hour}:00 по вашему часовому поясу. Это +${timezoneOffsetGmt} GMT.`, {
@@ -213,8 +198,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
 Если вам захочется сменить настройки, выполните команду /start.\nТеперь вам доступен личный профиль!\nДля перехода в личный профиль выполните команду /myProfile`;
             await bot.sendMessage(chatId, finalMessage);
 
-
-            // Подтверждение выбора роли врача
         } else if (data === 'role_doctor') {
             await bot.editMessageText(`Вы уверены, что хотите выбрать роль Врач? Все данные пациента будут удалены.`, {
                 chat_id: chatId,
@@ -228,47 +211,26 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                     ],
                 },
             });
-    }
-        else if (data === 'confirm_doctor') {
+
+        } else if (data === 'confirm_doctor') {
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
 
-            // Запрашиваем врача из базы данных
             const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
-
             let doctorKey;
 
             if (doctorCheck.rows.length === 0) {
-                // Если врача нет, генерируем уникальный ключ для врача
-                doctorKey = Math.random().toString(36).substring(2, 10); // Генерация случайной строки из 8 символов
-
+                doctorKey = Math.random().toString(36).substring(2, 10);
                 await db.query(
                     'INSERT INTO doctors (chat_id, language, doctor_key) VALUES ($1, $2, $3)',
                     [chatId, 'Русский', doctorKey]
                 );
             } else {
-                // Если врач существует, используем его ключ
                 doctorKey = doctorCheck.rows[0].doctor_key;
             }
 
-            await bot.editMessageText(`Записал, ваша роль: Врач. Все данные как пациента были удалены.`, {
-                chat_id: chatId,
-                message_id: messageId,
-            });
+            // После базовой настройки передаем управление в doctorOfficeHandlerRussian
+            await doctorOfficeHandlerRussian.initializeDoctorOfficeRussian(bot, chatId, messageId, doctorKey);
 
-            // Показываем кнопку "Список пациентов"
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }],
-                    ],
-                },
-            };
-
-            await bot.sendMessage(chatId, `Ваш уникальный ключ: ${doctorKey}. Сообщите его пациентам для подключения.`);
-            await bot.sendMessage(chatId, 'Добро пожаловать в кабинет врача!', options);
-
-
-        // Отмена выбора роли врача
         } else if (data === 'cancel_doctor') {
             await bot.editMessageText('Выбор роли отменен. Пожалуйста, выберите роль заново.', {
                 chat_id: chatId,
@@ -286,96 +248,10 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
                 },
             };
             await bot.sendMessage(chatId, 'Выберите вашу роль:', options);
-
-// Показ списка пациентов
-        } else if (data.startsWith('patient_list_page_')) {
-            const page = parseInt(data.split('_').pop(), 10);
-
-            // Запрашиваем ключ врача из базы данных
-            const doctorResult = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
-            const doctorKey = doctorResult.rows[0]?.doctor_key;
-
-            if (!doctorKey) {
-                await bot.sendMessage(chatId, "Ошибка: ключ врача не найден.");
-                return;
-            }
-
-            // Запрашиваем пациентов из базы данных
-            const result = await db.query('SELECT * FROM users WHERE doctor_key = $1', [doctorKey]); // Получаем список пациентов
-            const patients = result.rows;
-
-            let patientButtons = [];
-
-            // Проверяем, есть ли пациенты
-            if (patients.length > 0) {
-                // Генерация кнопок для пациентов
-                for (let i = 0; i < patients.length; i++) {
-                    const patientIndex = i + 1;
-                    patientButtons.push({ text: `Пациент ${patientIndex}`, callback_data: `patient_${patientIndex}` });
-                }
-
-                // Если у врача меньше 9 пациентов, добавляем пустые кнопки
-                for (let i = patients.length; i < 9; i++) {
-                    patientButtons.push({ text: ' ', callback_data: 'no_action' }); // Заглушка
-                }
-            } else {
-                // Если нет пациентов, создаем пустые кнопки
-                for (let i = 0; i < 9; i++) {
-                    patientButtons.push({ text: 'Нет пациентов', callback_data: 'no_action' });
-                }
-            }
-
-            // Формируем строки для кнопок
-            const patientRows = [];
-            for (let i = 0; i < patientButtons.length; i += 3) {
-                patientRows.push(patientButtons.slice(i, i + 3));
-            }
-
-            // Добавление кнопок навигации
-            const navigationButtons = [
-                { text: '⬅️ Влево', callback_data: page > 1 ? `patient_list_page_${page - 1}` : 'no_action' },
-                { text: 'Вернуться в меню', callback_data: 'doctor_menu' },
-                { text: 'Вправо ➡️', callback_data: `patient_list_page_${page + 1}` },
-            ];
-
-            // Добавляем навигационные кнопки в массив
-            patientRows.push(navigationButtons);
-
-            await bot.editMessageText(`Вот список ваших пациентов:`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: patientRows,
-                },
-            });
-
-// Обработка нажатия на имя пациента
-        } else if (data.startsWith('patient_')) {
-            const patientIndex = data.split('_')[1];
-            await bot.editMessageText(`Пациент: Пациент ${patientIndex}`, {
-                chat_id: chatId,
-                message_id: messageId,
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            { text: 'Вернуться назад', callback_data: `patient_list_page_${1}` }, // Возвращаемся на первую страницу списка пациентов
-                            { text: 'Прислать историю сообщений с пациентом', callback_data: `send_history_${patientIndex}` },
-                        ],
-                    ],
-                },
-            });np
-        } else if (data === 'doctor_menu') {
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }],
-                    ],
-                },
-            };
-            await bot.sendMessage(chatId, 'Вы вернулись в меню врача.', options);
+        } else {
+            // Передаем остальные callback запросы в обработчик кабинета врача
+            await doctorOfficeHandlerRussian.handleDoctorCallbackRussian(bot, callbackQuery);
         }
-
-
     } catch (err) {
         console.error('Ошибка при обработке callback_query:', err);
     }
