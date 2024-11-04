@@ -29,7 +29,11 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
     if (doctorKey) {
         await bot.sendMessage(chatId, `Ваш уникальный ключ: ${doctorKey}. Сообщите его пациентам для подключения.\nДля вызова меню используйте команду /menu.`);
     }
-    await bot.sendMessage(chatId, 'Добро пожаловать в кабинет врача!', options);
+    const doctor = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
+
+    if (doctor.rows.length > 0) {
+        const dbDoctorKey = doctor.rows[0].doctor_key;
+        await bot.sendMessage(chatId, `Добро пожаловать в кабинет врача!\n\nВаш ключ: ${dbDoctorKey}`, options);}
 }
 
 async function handlePatientListPageRussian(bot, chatId, messageId, data) {

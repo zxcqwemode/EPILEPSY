@@ -11,8 +11,8 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             const doctorLanguageResult = await db.query('SELECT language FROM doctors WHERE chat_id = $1', [chatId]);
             const language = doctorLanguageResult.rows.length > 0 ? doctorLanguageResult.rows[0].language : 'Русский';
 
-            await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
-            await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
+            // await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
+            // await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
             await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['gender_choice', chatId]);
 
             await bot.editMessageText(`Записал, ваша роль: Пациент.`, {

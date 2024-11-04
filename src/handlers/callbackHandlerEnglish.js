@@ -12,10 +12,10 @@ module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
             const language = doctorLanguageResult.rows.length > 0 ? doctorLanguageResult.rows[0].language : 'English'; // Если языка нет, устанавливаем по умолчанию на английский
 
             // Удаляем врача из таблицы doctors
-            await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
-
-            // Вставляем пользователя в таблицу users с языком
-            await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
+            // await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
+            //
+            // // Вставляем пользователя в таблицу users с языком
+            // await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
 
             // Обновляем шаг пользователя в таблице users
             await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['gender_choice', chatId]);

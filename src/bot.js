@@ -153,7 +153,7 @@ const initializeDatabase = async () => {
         const createDoctorsTable = `
             CREATE TABLE doctors (
                 chat_id BIGINT PRIMARY KEY,
-                language VARCHAR(50),
+                language VARCHAR(255),
                 doctor_key VARCHAR(50),
                 awaiting_message_for BIGINT
            

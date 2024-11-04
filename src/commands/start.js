@@ -1,20 +1,29 @@
 const db = require('../config/db');
 
 module.exports = async function handleStartCommand(bot, msg) {
-    const chatId = msg.chat.id;;
+    const chatId = msg.chat.id;
 
     try {
-        // Проверяем, существует ли пользователь
+        // Проверяем существование пользователя в обеих таблицах
         const userCheck = await db.query('SELECT * FROM users WHERE chat_id = $1', [chatId]);
         const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
 
-        // Если пользователь не существует, добавляем его в базу данных
-        if (userCheck.rows.length === 0 && doctorCheck.rows.length === 0) {
-            await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)', [chatId, 'language_choice']);
-            console.log(`Пользователь с chat_id: ${chatId} добавлен в базу данных.`);
-        } else {
-            console.log(`Пользователь с chat_id: ${chatId} уже существует в базе данных.`);
+        // Если пользователь существует как доктор, удаляем его из таблицы doctors
+        if (doctorCheck.rows.length > 0) {
+            await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
         }
+
+        // Если пользователь существует в таблице users, обновляем его статус
+        if (userCheck.rows.length > 0) {
+            await db.query('UPDATE users SET step = $1 WHERE chat_id = $2',
+                ['language_choice', chatId]);
+        } else {
+            // Если пользователь не существует, создаем новую запись
+            await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)',
+                [chatId, 'language_choice']);
+        }
+
+        console.log(`User with chat_id: ${chatId} processed in database.`);
 
         const options = {
             reply_markup: {
@@ -27,7 +36,7 @@ module.exports = async function handleStartCommand(bot, msg) {
             },
         };
 
-        // Спрашиваем язык
+        // Отправляем приветственное сообщение
         await bot.sendMessage(chatId, 'Привет, я Эпилепсибот!\n' +
             'Помогаю отслеживать, когда, как и от чего у вас приступы эпилепсии\n' +
             '\n' +
@@ -38,6 +47,7 @@ module.exports = async function handleStartCommand(bot, msg) {
             'Если вы уже общались с моей предыдущей версией — не волнуйтесь, я сохранил все данные', options);
 
     } catch (err) {
-        console.error('Ошибка при обработке команды /start:', err);
+        console.error('Error handling /start command:', err);
+        await bot.sendMessage(chatId, 'Произошла ошибка. Пожалуйста, попробуйте еще раз.');
     }
 };

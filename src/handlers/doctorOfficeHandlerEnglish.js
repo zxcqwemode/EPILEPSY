@@ -26,10 +26,15 @@ async function showDoctorMainMenuEnglish(bot, chatId, doctorKey) {
         },
     };
 
+    const doctor = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
+
     if (doctorKey) {
         await bot.sendMessage(chatId, `Your unique key: ${doctorKey}. Share it with patients to connect.\nUse the /menu command to bring up the menu.`);
     }
-    await bot.sendMessage(chatId, 'Welcome to the doctor\'s office!', options);
+    if (doctor.rows.length > 0) {
+        const dbDoctorKey = doctor.rows[0].doctor_key;
+        await bot.sendMessage(chatId, `Welcome to the doctor\'s office!\n\nYour unique key: ${dbDoctorKey}`, options);
+    }
 }
 
 async function handlePatientListPageEnglish(bot, chatId, messageId, data) {
