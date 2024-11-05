@@ -30,8 +30,8 @@ const {
 const NotificationHandlersRussian = require('./cabinet/notificationHandler/notificationHandlersRussian');
 const NotificationHandlersEnglish = require('./cabinet/notificationHandler/notificationHandlersEnglish');
 
-const DoctorPatientHandlerRussian = require('./cabinet/doctorConnection/DoctorPatientHandlerRussian');
-const DoctorPatientHandlerEnglish = require('./cabinet/doctorConnection/DoctorPatientHandlerEnglish');
+const DoctorPatientHandlerRussian = require('./cabinet/doctorConnection/doctorPatientHandlerRussian');
+const DoctorPatientHandlerEnglish = require('./cabinet/doctorConnection/doctorPatientHandlerEnglish');
 
 const {
     seizureCalendarRussian,
