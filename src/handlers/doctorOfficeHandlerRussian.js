@@ -21,7 +21,7 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }]
+                [{text: 'Список пациентов', callback_data: 'patient_list_page_1'}]
             ],
         },
     };
@@ -33,10 +33,12 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
 
     if (doctor.rows.length > 0) {
         const dbDoctorKey = doctor.rows[0].doctor_key;
-        await bot.sendMessage(chatId, `Добро пожаловать в кабинет врача!\n\nВаш ключ: ${dbDoctorKey}`, options);}
+        const message = `Добро пожаловать в кабинет врача!\n\nВаш ключ:\n<code>${dbDoctorKey}</code>`;
+        await bot.sendMessage(chatId, message, {parse_mode: "HTML"});
+    }
 }
 
-async function handlePatientListPageRussian(bot, chatId, messageId, data) {
+    async function handlePatientListPageRussian(bot, chatId, messageId, data) {
     try {
         const page = parseInt(data.split('_').pop(), 10);
 
@@ -113,9 +115,9 @@ async function handlePatientSelectionRussian(bot, chatId, messageId, data) {
             message_id: messageId,
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: 'Вернуться назад', callback_data: `patient_list_page_1` }],
                     [{ text: 'Непрочитанные сообщения', callback_data: `unread_messages_patient_${patientIndex}` }],
                     [{ text: 'История переписки', callback_data: `send_history_${patientIndex}` }],
+                    [{ text: 'Вернуться назад', callback_data: `patient_list_page_1` }]
                 ],
             },
         });

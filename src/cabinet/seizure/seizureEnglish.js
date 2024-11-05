@@ -10,7 +10,8 @@ module.exports = async function seizureEnglish(bot, chatId, messageId) {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: 'Start', callback_data: 'start_seizure_english' }
+                    { text: 'Start', callback_data: 'start_seizure_english' },
+                    { text: 'Back to Profile', callback_data: 'back_to_profile' }
                 ]
             ]
         }
