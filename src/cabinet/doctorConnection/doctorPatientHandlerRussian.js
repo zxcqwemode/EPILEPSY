@@ -50,8 +50,17 @@ class DoctorPatientHandlerRussian {
 
     async requestDoctorKeyRussian(chatId) {
         this.waitingForKey.add(chatId);
-        await this.bot.sendMessage(chatId, "Введите ключ от врача:");
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "Вернуться в профиль", callback_data: "back_to_profile" }]
+                ]
+            }
+        };
+        const message = await this.bot.sendMessage(chatId, "Введите ключ от врача:", options);
+        this.keyMessageId = message.message_id; // Сохраняем message_id
     }
+
 
     async showInvalidKeyMenuRussian(chatId) {
         this.waitingForKey.delete(chatId);
@@ -68,6 +77,19 @@ class DoctorPatientHandlerRussian {
     async handleKeyInputRussian(chatId, messageText) {
         if (!this.waitingForKey.has(chatId)) return;
 
+        // Удаляем кнопку "Вернуться в профиль"
+        if (this.keyMessageId) {
+            try {
+                await this.bot.editMessageReplyMarkup(
+                    { inline_keyboard: [] },
+                    { chat_id: chatId, message_id: this.keyMessageId }
+                );
+            } catch (error) {
+                console.error('Error removing keyboard:', error);
+            }
+            this.keyMessageId = null; // Очистка сохраненного message_id
+        }
+
         const doctorResult = await db.query('SELECT * FROM doctors WHERE doctor_key = $1', [messageText]);
 
         if (doctorResult.rows.length > 0) {
@@ -79,6 +101,7 @@ class DoctorPatientHandlerRussian {
             await this.showInvalidKeyMenuRussian(chatId);
         }
     }
+
 
     async handleNameInputRussian(chatId, messageText) {
         if (!this.waitingForName.has(chatId)) return;
