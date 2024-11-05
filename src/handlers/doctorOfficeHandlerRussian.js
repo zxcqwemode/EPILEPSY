@@ -21,7 +21,7 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{text: 'Список пациентов', callback_data: 'patient_list_page_1'}]
+                [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }]
             ],
         },
     };
@@ -29,13 +29,16 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
     if (doctorKey) {
         await bot.sendMessage(chatId, `Ваш уникальный ключ: ${doctorKey}. Сообщите его пациентам для подключения.\nДля вызова меню используйте команду /menu.`);
     }
+
     const doctor = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
 
     if (doctor.rows.length > 0) {
         const dbDoctorKey = doctor.rows[0].doctor_key;
         const message = `Добро пожаловать в кабинет врача!\n\nВаш ключ:\n<code>${dbDoctorKey}</code>`;
-        await bot.sendMessage(chatId, message, {parse_mode: "HTML"});
+        await bot.sendMessage(chatId, message, { parse_mode: "HTML" });
     }
+
+    await bot.sendMessage(chatId, `Главное меню`, options);
 }
 
     async function handlePatientListPageRussian(bot, chatId, messageId, data) {

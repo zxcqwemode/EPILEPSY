@@ -21,21 +21,24 @@ async function showDoctorMainMenuEnglish(bot, chatId, doctorKey) {
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{text: 'Patient List', callback_data: 'patient_list_page_1'}]
+                [{ text: 'Patient List', callback_data: 'patient_list_page_1' }]
             ],
         },
     };
 
-    const doctor = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
-
     if (doctorKey) {
         await bot.sendMessage(chatId, `Your unique key: ${doctorKey}. Share it with patients to connect.\nUse the /menu command to bring up the menu.`);
     }
+
+    const doctor = await db.query('SELECT doctor_key FROM doctors WHERE chat_id = $1', [chatId]);
+
     if (doctor.rows.length > 0) {
         const dbDoctorKey = doctor.rows[0].doctor_key;
         const message = `Welcome to the doctor's office!\n\nYour unique key:\n<code>${dbDoctorKey}</code>`;
-        await bot.sendMessage(chatId, message, {parse_mode: "HTML"});
+        await bot.sendMessage(chatId, message, { parse_mode: "HTML" });
     }
+
+    await bot.sendMessage(chatId, `Main Menu`, options);
 }
 
     async function handlePatientListPageEnglish(bot, chatId, messageId, data) {
