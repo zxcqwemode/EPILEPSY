@@ -11,8 +11,6 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             const doctorLanguageResult = await db.query('SELECT language FROM doctors WHERE chat_id = $1', [chatId]);
             const language = doctorLanguageResult.rows.length > 0 ? doctorLanguageResult.rows[0].language : 'Русский';
 
-            // await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
-            // await db.query('INSERT INTO users (chat_id, language) VALUES ($1, $2) ON CONFLICT (chat_id) DO NOTHING', [chatId, language]);
             await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['gender_choice', chatId]);
 
             await bot.editMessageText(`Записал, ваша роль: Пациент.`, {
@@ -87,114 +85,14 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
             const timezoneOffsetMsk = parseInt(data.split('_')[2]);
             const timezoneOffsetGmt = timezoneOffsetMsk + 3;
 
-            await db.query('UPDATE users SET timezone_gmt = $1, step = $2 WHERE chat_id = $3', [timezoneOffsetGmt, 'notification_period', chatId]);
+            await db.query('UPDATE users SET timezone_gmt = $1, step = $2 WHERE chat_id = $3', [timezoneOffsetGmt, 'registered', chatId]);
 
             await bot.editMessageText(`Ваш часовой пояс: GMT${timezoneOffsetGmt >= 0 ? '+' : ''}${timezoneOffsetGmt}`, {
                 chat_id: chatId,
                 message_id: messageId,
             });
 
-            const options = {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {text: 'Утром', callback_data: 'time_morning'},
-                            {text: 'Днем', callback_data: 'time_afternoon'},
-                            {text: 'Вечером', callback_data: 'time_evening'},
-                        ],
-                    ],
-                },
-            };
-            bot.sendMessage(chatId, 'Когда вам удобно получать уведомления?', options);
-
-        } else if (data === 'time_morning' || data === 'time_afternoon' || data === 'time_evening') {
-            const time = data === 'time_morning' ? 'Утром' : data === 'time_afternoon' ? 'Днем' : 'Вечером';
-
-            await db.query('UPDATE users SET notification_period = $1 WHERE chat_id = $2', [time, chatId]);
-
-            await bot.editMessageText(`Вы выбрали: ${time}`, {
-                chat_id: chatId,
-                message_id: messageId,
-            });
-
-            let hoursOptions = [];
-            if (time === 'Утром') {
-                hoursOptions = [
-                    {text: '6:00', callback_data: 'hour_6'},
-                    {text: '7:00', callback_data: 'hour_7'},
-                    {text: '8:00', callback_data: 'hour_8'},
-                    {text: '9:00', callback_data: 'hour_9'},
-                    {text: '10:00', callback_data: 'hour_10'},
-                    {text: '11:00', callback_data: 'hour_11'}
-                ];
-            } else if (time === 'Днем') {
-                hoursOptions = [
-                    {text: '12:00', callback_data: 'hour_12'},
-                    {text: '13:00', callback_data: 'hour_13'},
-                    {text: '14:00', callback_data: 'hour_14'},
-                    {text: '15:00', callback_data: 'hour_15'},
-                    {text: '16:00', callback_data: 'hour_16'},
-                    {text: '17:00', callback_data: 'hour_17'}
-                ];
-            } else if (time === 'Вечером') {
-                hoursOptions = [
-                    {text: '18:00', callback_data: 'hour_18'},
-                    {text: '19:00', callback_data: 'hour_19'},
-                    {text: '20:00', callback_data: 'hour_20'},
-                    {text: '21:00', callback_data: 'hour_21'},
-                    {text: '22:00', callback_data: 'hour_22'},
-                    {text: '23:00', callback_data: 'hour_23'},
-                ];
-            }
-
-            const changePeriodOptions = [];
-            if (time === 'Утром') {
-                changePeriodOptions.push(
-                    {text: 'День', callback_data: 'time_afternoon'},
-                    {text: 'Вечер', callback_data: 'time_evening'}
-                );
-            } else if (time === 'Днем') {
-                changePeriodOptions.push(
-                    {text: 'Утро', callback_data: 'time_morning'},
-                    {text: 'Вечер', callback_data: 'time_evening'}
-                );
-            } else if (time === 'Вечером') {
-                changePeriodOptions.push(
-                    {text: 'Утро', callback_data: 'time_morning'},
-                    {text: 'День', callback_data: 'time_afternoon'}
-                );
-            }
-
-            const hourOptions = {
-                reply_markup: {
-                    inline_keyboard: [
-                        hoursOptions,
-                        changePeriodOptions
-                    ],
-                },
-            };
-
-            bot.sendMessage(chatId, 'Отлично, выберите точное время для уведомлений:', hourOptions);
-
-        } else if (data.startsWith('hour_') && !data.endsWith('_edit')) {
-            const hour = data.split('_')[1];
-
-            const user = await db.query('SELECT timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
-            const timezoneOffsetGmt = user.rows[0].timezone_gmt;
-
-            const hourMsk = hour - timezoneOffsetGmt + 3;
-            await db.query('UPDATE users SET notification_hour_msk = $1 WHERE chat_id = $2', [hourMsk, chatId]);
-
-            const gmtHour = (parseInt(hour) - timezoneOffsetGmt + 24) % 24;
-
-            await db.query('UPDATE users SET notification_hour_gmt = $1 WHERE chat_id = $2', [gmtHour, chatId]);
-            await db.query('UPDATE users SET step = $1 WHERE chat_id = $2', ['registered', chatId])
-            await bot.editMessageText(`Записал ваше время: ${hour}:00 по вашему часовому поясу. Это +${timezoneOffsetGmt} GMT.`, {
-                chat_id: chatId,
-                message_id: messageId,
-            });
-            const finalMessage = `Отлично👍, с настройкой вашего профиля закончили!\nЯ напомню вам о себе после ${hour}:00 по расписанию.\n
-
+            const finalMessage = `Отлично👍, с настройкой вашего профиля закончили!\n
 Если вам захочется сменить настройки, выполните команду /start.\nТеперь вам доступен личный профиль!\nДля перехода в личный профиль выполните команду /myProfile`;
             await bot.sendMessage(chatId, finalMessage);
 
@@ -215,6 +113,8 @@ module.exports = async function handleCallbackQueryRussian(bot, callbackQuery) {
         } else if (data === 'confirm_doctor') {
             await db.query('DELETE FROM messages WHERE user_id = $1', [chatId]);
             await db.query('DELETE FROM calendar WHERE user_id = $1', [chatId]);
+            await db.query('DELETE FROM notifications WHERE user_id = $1', [chatId]);
+
             await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
 
             const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);

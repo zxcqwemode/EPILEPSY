@@ -10,7 +10,13 @@ const callbackMyProfileRussian = require('./handlers/myProfileRussian');
 const callbackMyProfileEnglish = require('./handlers/myProfileEnglish');
 const informationRussian = require('./cabinet/informationHandler/informationRussian');
 const informationEnglish = require('./cabinet/informationHandler/informationEnglish');
-const scheduleNotifications = require('./cabinet/notificationHandler/notifications');
+
+const NotificationsRussian = require('./cabinet/notificationHandler/notificationsRussian');
+//const { NotificationsEnglish } = require('./cabinet/notificationHandler/notificationsEnglish');
+const initNotifications = require('./cabinet/notificationHandler/notifications');
+
+const statisticRussian = require('./cabinet/statistic/statisticRussian');
+const statisticEnglish = require('./cabinet/statistic/statisticEnglish');
 
 const {
     handleDoctorMessage,
@@ -18,17 +24,12 @@ const {
     handleDoctorCallbackRussian,
     handleUnreadMessagesForPatient
 } = require('./handlers/doctorOfficeHandlerRussian');
-
 const {
     handleDoctorMessageEnglish,
     handleMenuCommandEnglish,
     handleDoctorCallbackEnglish,
     handleUnreadMessagesForPatientEnglish
 } = require('./handlers/doctorOfficeHandlerEnglish');
-
-
-const NotificationHandlersRussian = require('./cabinet/notificationHandler/notificationHandlersRussian');
-const NotificationHandlersEnglish = require('./cabinet/notificationHandler/notificationHandlersEnglish');
 
 const DoctorPatientHandlerRussian = require('./cabinet/doctorConnection/doctorPatientHandlerRussian');
 const DoctorPatientHandlerEnglish = require('./cabinet/doctorConnection/doctorPatientHandlerEnglish');
@@ -59,6 +60,13 @@ const initializeDatabase = async () => {
         );
     `;
 
+    const checkNotificationsTable = `
+    SELECT EXISTS (
+        SELECT FROM pg_tables 
+        WHERE tablename = 'notifications'
+    );
+`;
+
     const checkDoctorsTable = `
         SELECT EXISTS (
             SELECT FROM pg_tables 
@@ -85,11 +93,20 @@ const initializeDatabase = async () => {
         WHERE table_name = 'calendar'
     );
 `);
+    const checkBansTable = `
+    SELECT EXISTS (
+        SELECT FROM pg_tables 
+        WHERE tablename = 'bans'
+    );
+`;
+
 
     const usersTableExists = await db.query(checkUsersTable);
+    const notificationsTableExists = await db.query(checkNotificationsTable);
     const doctorsTableExists = await db.query(checkDoctorsTable);
     const messagesTableExists = await db.query(checkMessagesTable);
     const doctorsMessagesTableExists = await db.query(checkDoctorsMessagesTable);
+    const bansTableExists = await db.query(checkBansTable);
 
     if (!calendarTableExists.rows[0].exists) {
         const createCalendarTable = `
@@ -117,6 +134,7 @@ const initializeDatabase = async () => {
         const createUsersTable = `
             CREATE TABLE users (
                 chat_id BIGINT PRIMARY KEY,
+                fio VARCHAR(50),
                 name VARCHAR(50),
                 language VARCHAR(50),
                 gender VARCHAR(50),
@@ -132,6 +150,21 @@ const initializeDatabase = async () => {
         `;
         await db.query(createUsersTable);
         console.log("Таблица 'users' была создана.");
+    }
+    if (!notificationsTableExists.rows[0].exists) {
+        const createNotificationsTable = `
+        CREATE TABLE notifications (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            notification_time VARCHAR(50),
+            medication VARCHAR(255),
+            dose VARCHAR(100),
+            created_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (user_id) REFERENCES users (chat_id)
+        );
+    `;
+        await db.query(createNotificationsTable);
+        console.log("Таблица 'notifications' была создана.");
     }
 
     if (!doctorsMessagesTableExists.rows[0].exists) {
@@ -155,6 +188,8 @@ const initializeDatabase = async () => {
                 chat_id BIGINT PRIMARY KEY,
                 language VARCHAR(255),
                 doctor_key VARCHAR(50),
+                name VARCHAR(50),
+                description VARCHAR(50),
                 awaiting_message_for BIGINT
            
             );
@@ -182,6 +217,22 @@ const initializeDatabase = async () => {
         console.log("Таблица 'messages' была создана.");
     }
 
+    if (!bansTableExists.rows[0].exists) {
+        const createBansTable = `
+        CREATE TABLE bans (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT,
+            doctor_key VARCHAR(50),
+            CONSTRAINT unique_user_doctor UNIQUE (user_id, doctor_key)
+
+           
+        );
+    `;
+        await db.query(createBansTable);
+        console.log("Таблица 'bans' была создана.");
+    }
+
+
 };
 // Инициализация бота
 const bot = new TelegramBot(process.env.BOT_TOKEN, { polling: true });
@@ -192,18 +243,29 @@ const handler = new DoctorPatientHandlerRussian(bot);
 const handlerEnglish = new DoctorPatientHandlerEnglish(bot);
 seizureRussian.setupCallbackHandler(bot);
 seizureEnglish.setupCallbackHandler(bot);
+const notificationsRussian = new NotificationsRussian(bot);
+//const notificationsEnglish = new NotificationsEnglish(bot);
+
+
+
+
+
 
 // Хранилище для языковых предпочтений пользователей
 const userLanguages = {};
 
 // Вызов функции инициализации базы данных
 initializeDatabase().then(() => {
+    //notificationsEnglish.setupCallbackHandler(bot);
+
+    notificationsRussian.setupHandlers();
+    initNotifications();
     // Обработчик команды /start
     bot.onText(/\/start/, (msg) => {
         handleStartCommand(bot, msg);
     });
 
-    scheduleNotifications(bot);
+
 
     bot.onText(/\/myProfile/, (msg) => {
         handleMyProfileCommand(bot, msg);
@@ -300,7 +362,7 @@ initializeDatabase().then(() => {
 
         } else if (data === 'doctor_connection' || data === 'view_messages' || data === 'send_message' ||
             data === 'change_doctor' || data === 'retry_key' || data === 'choose_message_type' ||
-            data === 'send_text_message' || data === 'send_file') {
+            data === 'send_text_message' || data === 'send_file'|| data === 'doctor_info') {
             if (userLanguage === 'English') {
                 await doctorHandlerEnglish.handleCallbackEnglish(callbackQuery);
             } else {
@@ -350,15 +412,28 @@ initializeDatabase().then(() => {
                 await callbackMyProfileRussian(bot, { chat: { id: chatId } });
             }
 
-        } else if (data === 'notifications') {
+        }
+        else if (data === 'statistic') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             const messageId = callbackQuery.message.message_id;
 
             if (userLanguage === 'English') {
-                await NotificationHandlersEnglish(bot, callbackQuery.message.chat.id, callbackQuery.message.message_id);
+                await statisticEnglish(bot, chatId, messageId);
             } else {
-                await NotificationHandlersRussian(bot, callbackQuery.message.chat.id, callbackQuery.message.message_id);
+                await statisticRussian(bot, chatId, messageId);
             }
+
+
+        }else if (data === 'notifications') {
+            const messageId = callbackQuery.message.message_id;
+            const userResult = await db.query('SELECT language FROM users WHERE chat_id = $1', [chatId]);
+            const userLanguage = userResult.rows[0].language;
+            if (userLanguage === 'English') {
+                //await notificationsEnglish.notificationsEnglish(chatId, messageId);
+            } else if (userLanguage === 'Русский'){
+                await notificationsRussian.handleNotifications(bot, callbackQuery.message.chat.id, messageId);
+            }
+
 
         } else if (data === 'seizure_calendar') {
             const messageId = callbackQuery.message.message_id;

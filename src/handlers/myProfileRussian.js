@@ -21,8 +21,6 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
 - ID: ${chat_id}
 - Пол: ${gender || 'Не указан'}
 - Часовой пояс (GMT): ${timezone_gmt}
-- Период уведомлений: ${notification_period || 'Не указан'}
-- Час уведомлений: ${notification_hour_msk+timezone_gmt-3 || 'Не указан'}
         `;
 
         // Определяем кнопки для личного кабинета
@@ -30,15 +28,18 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: 'Информация о заболевании', callback_data: 'info_about_disease' },
-                        { text: 'Уведомления', callback_data: 'notifications' },
+                        { text: 'Информация о заболевании 🩺', callback_data: 'info_about_disease' }
                     ],
                     [
-                        { text: 'Календарь приступов', callback_data: 'seizure_calendar' },
-                        { text: 'Приступ', callback_data: 'start_timer_seizure' },
+                        { text: 'Календарь приступов 📅', callback_data: 'seizure_calendar' },
+                        { text: 'Приступ ⚡', callback_data: 'start_timer_seizure' },
                     ],
                     [
-                        { text: 'Связь с врачом', callback_data: 'doctor_connection' },
+                        { text: 'Статистика 📊', callback_data: 'statistic' },
+                        { text: 'Напоминания ⏰', callback_data: 'notifications' }
+                    ],
+                    [
+                        { text: 'Связь с врачом 👨‍⚕️', callback_data: 'doctor_connection' }
                     ],
                 ],
             },

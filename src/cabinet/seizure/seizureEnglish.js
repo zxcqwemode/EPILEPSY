@@ -2,7 +2,9 @@ const db = require('../../config/db');
 
 let seizureStartTimesEnglish = new Map();
 let awaitingDescriptionEnglish = new Set();
+let awaitingCustomDescriptionEnglish = new Set();
 let awaitingTriggerEnglish = new Set();
+let awaitingCustomTriggerEnglish = new Set();
 
 module.exports = async function seizureEnglish(bot, chatId, messageId) {
     const message = "Press \"Start\" if you are having a seizure";
@@ -24,140 +26,25 @@ module.exports = async function seizureEnglish(bot, chatId, messageId) {
     });
 };
 
-function setupCallbackHandlerEnglish(bot) {
-    // Text message handler
-    bot.on('message', async (msg) => {
-        const chatId = msg.chat.id;
-
-        if (awaitingDescriptionEnglish.has(chatId)) {
-            await handleSeizureDescriptionEnglish(bot, chatId, msg.text);
-            awaitingDescriptionEnglish.delete(chatId);
-            return;
-        }
-
-        if (awaitingTriggerEnglish.has(chatId)) {
-            await handleTriggerDescriptionEnglish(bot, chatId, msg.text);
-            awaitingTriggerEnglish.delete(chatId);
-            return;
-        }
-    });
-
-    // Button handler
-    bot.on('callback_query', async (query) => {
-        const chatId = query.message.chat.id;
-        const messageId = query.message.message_id;
-
-        switch (query.data) {
-            case 'start_seizure_english':
-                await handleStartSeizureEnglish(bot, chatId, messageId);
-                break;
-            case 'stop_seizure_english':
-                await handleStopSeizureEnglish(bot, chatId, messageId);
-                break;
-            case 'yes_questions_english':
-                await startQuestionsFlowEnglish(bot, chatId, messageId);
-                break;
-            case 'no_questions_english':
-                await handleNoQuestionsEnglish(bot, chatId, messageId);
-                break;
-            case 'repeated_yes':
-                await showRepeatedSeizuresButtonsEnglish(bot, chatId, messageId);
-                break;
-            case 'repeated_no':
-                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 'No');
-                break;
-            case 'repeated_1':
-            case 'repeated_2':
-            case 'repeated_3':
-            case 'repeated_4':
-            case 'repeated_5':
-            case 'repeated_6plus':
-                const count = query.data.replace('repeated_', '');
-                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, count);
-                break;
-            case 'back_to_profile':
-                // Function to return to profile should be here
-                break;
-        }
-
-        try {
-            await bot.answerCallbackQuery(query.id);
-        } catch (error) {
-            console.error('Error answering callback query:', error);
-        }
-    });
-}
-
 async function startQuestionsFlowEnglish(bot, chatId, messageId) {
-    const message = "Please describe how the seizure manifested (e.g., convulsions, loss of consciousness, uncoordinated movements, hallucinations, etc.):";
-
-    await bot.editMessageText(message, {
-        chat_id: chatId,
-        message_id: messageId
-    });
-
-    awaitingDescriptionEnglish.add(chatId);
-}
-
-async function handleSeizureDescriptionEnglish(bot, chatId, description) {
-    const currentDate = new Date().toISOString().split('T')[0];
-
-    try {
-        await db.query(
-            'UPDATE calendar SET seizure_description = $1 WHERE user_id = $2 AND date = $3',
-            [description, chatId, currentDate]
-        );
-
-        const message = "Were there any seizure triggers? (Missed medication, bright lights, lack of sleep, alcohol, stress, or your own variant):";
-        await bot.sendMessage(chatId, message);
-
-        awaitingTriggerEnglish.add(chatId);
-    } catch (error) {
-        console.error('Error saving seizure description:', error);
-    }
-}
-
-async function handleTriggerDescriptionEnglish(bot, chatId, trigger) {
-    const currentDate = new Date().toISOString().split('T')[0];
-
-    try {
-        await db.query(
-            'UPDATE calendar SET trigger = $1 WHERE user_id = $2 AND date = $3',
-            [trigger, chatId, currentDate]
-        );
-
-        const message = "Did you have any repeated seizures during the day?";
-        const options = {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: 'Yes', callback_data: 'repeated_yes' },
-                        { text: 'No', callback_data: 'repeated_no' }
-                    ]
-                ]
-            }
-        };
-
-        await bot.sendMessage(chatId, message, options);
-    } catch (error) {
-        console.error('Error saving trigger:', error);
-    }
-}
-
-async function showRepeatedSeizuresButtonsEnglish(bot, chatId, messageId) {
-    const message = "How many repeated seizures did you have?";
+    const message = "How did the seizure manifest?";
     const options = {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: '1', callback_data: 'repeated_1' },
-                    { text: '2', callback_data: 'repeated_2' },
-                    { text: '3', callback_data: 'repeated_3' }
+                    { text: 'Convulsions', callback_data: 'description_seizures_english' }
                 ],
                 [
-                    { text: '4', callback_data: 'repeated_4' },
-                    { text: '5', callback_data: 'repeated_5' },
-                    { text: '6+', callback_data: 'repeated_6plus' }
+                    { text: 'Loss of consciousness', callback_data: 'description_loss_of_consciousness_english' }
+                ],
+                [
+                    { text: 'Uncoordinated movements', callback_data: 'description_uncoordinated_movements_english' }
+                ],
+                [
+                    { text: 'Hallucinations', callback_data: 'description_hallucinations_english' }
+                ],
+                [
+                    { text: 'Custom description', callback_data: 'description_custom_english' }
                 ]
             ]
         }
@@ -168,6 +55,95 @@ async function showRepeatedSeizuresButtonsEnglish(bot, chatId, messageId) {
         message_id: messageId,
         reply_markup: options.reply_markup
     });
+}
+
+async function handleSeizureDescriptionEnglish(bot, chatId, messageId, description) {
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    try {
+        await db.query(
+            'UPDATE calendar SET seizure_description = $1 WHERE user_id = $2 AND date = $3',
+            [description, chatId, currentDate]
+        );
+
+        // Save current description
+        await bot.editMessageText(`How did the seizure manifest?\n${description}`, {
+            chat_id: chatId,
+            message_id: messageId
+        });
+
+        const message = "Were there any seizure triggers?";
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: 'Missed medication', callback_data: 'trigger_medication_skip_english' }
+                    ],
+                    [
+                        { text: 'Bright light', callback_data: 'trigger_bright_light_english' }
+                    ],
+                    [
+                        { text: 'Lack of sleep', callback_data: 'trigger_lack_of_sleep_english' }
+                    ],
+                    [
+                        { text: 'Alcohol', callback_data: 'trigger_alcohol_english' }
+                    ],
+                    [
+                        { text: 'Stress', callback_data: 'trigger_stress_english' }
+                    ],
+                    [
+                        { text: 'Custom trigger', callback_data: 'trigger_custom_english' }
+                    ]
+                ]
+            }
+        };
+
+        await bot.sendMessage(chatId, message, options);
+    } catch (error) {
+        console.error('Error saving seizure description:', error);
+    }
+}
+
+async function handleTriggerDescriptionEnglish(bot, chatId, messageId, trigger) {
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    try {
+        await db.query(
+            'UPDATE calendar SET trigger = $1 WHERE user_id = $2 AND date = $3',
+            [trigger, chatId, currentDate]
+        );
+
+        // Save current trigger
+        await bot.editMessageText(`Were there any seizure triggers?\n${trigger}`, {
+            chat_id: chatId,
+            message_id: messageId
+        });
+
+        const message = "How many repeated seizures did you have?";
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: '1', callback_data: 'repeated_1_english' },
+                        { text: '2', callback_data: 'repeated_2_english' },
+                        { text: '3', callback_data: 'repeated_3_english' }
+                    ],
+                    [
+                        { text: '4', callback_data: 'repeated_4_english' },
+                        { text: '5', callback_data: 'repeated_5_english' },
+                        { text: '6+', callback_data: 'repeated_6plus_english' }
+                    ],
+                    [
+                        { text: 'None', callback_data: 'repeated_no_english' }
+                    ]
+                ]
+            }
+        };
+
+        await bot.sendMessage(chatId, message, options);
+    } catch (error) {
+        console.error('Error saving trigger:', error);
+    }
 }
 
 async function handleRepeatedSeizuresEnglish(bot, chatId, messageId, count) {
@@ -190,6 +166,7 @@ async function handleRepeatedSeizuresEnglish(bot, chatId, messageId, count) {
             }
         };
 
+        // Удаляем старое сообщение, отправляем новое
         await bot.editMessageText(message, {
             chat_id: chatId,
             message_id: messageId,
@@ -199,6 +176,7 @@ async function handleRepeatedSeizuresEnglish(bot, chatId, messageId, count) {
         console.error('Error saving repeated seizures:', error);
     }
 }
+
 
 async function handleNoQuestionsEnglish(bot, chatId, messageId) {
     const message = "Thank you for your response";
@@ -276,6 +254,160 @@ async function handleStopSeizureEnglish(bot, chatId, messageId) {
 
         seizureStartTimesEnglish.delete(chatId);
     }
+}
+
+function setupCallbackHandlerEnglish(bot) {
+    bot.on('message', async (msg) => {
+        const chatId = msg.chat.id;
+
+        if (awaitingCustomDescriptionEnglish.has(chatId)) {
+            const messageId = msg.message_id - 1; // Previous message
+            try {
+                if (msg.text && msg.text.trim() !== '') {
+                    await handleSeizureDescriptionEnglish(bot, chatId, messageId, msg.text);
+                } else {
+                    await bot.sendMessage(chatId, "Please provide a valid seizure description.");
+                }
+            } catch (error) {
+                console.error('Error editing message for custom description:', error.message);
+                await bot.sendMessage(chatId, "An error occurred while saving the description. Please try again.");
+            } finally {
+                awaitingCustomDescriptionEnglish.delete(chatId);
+            }
+            return;
+        }
+
+        if (awaitingCustomTriggerEnglish.has(chatId)) {
+            const messageId = msg.message_id - 1; // Previous message
+            try {
+                if (msg.text && msg.text.trim() !== '') {
+                    await handleTriggerDescriptionEnglish(bot, chatId, messageId, msg.text);
+                } else {
+                    await bot.sendMessage(chatId, "Please provide a valid seizure trigger.");
+                }
+            } catch (error) {
+                console.error('Error editing message for custom trigger:', error.message);
+                await bot.sendMessage(chatId, "An error occurred while saving the trigger. Please try again.");
+            } finally {
+                awaitingCustomTriggerEnglish.delete(chatId);
+            }
+            return;
+        }
+    });
+
+    // Callback handler for buttons
+    bot.on('callback_query', async (query) => {
+        const chatId = query.message.chat.id;
+        const messageId = query.message.message_id;
+
+        switch (query.data) {
+            case 'start_seizure_english':
+                await handleStartSeizureEnglish(bot, chatId, messageId);
+                break;
+
+            case 'stop_seizure_english':
+                await handleStopSeizureEnglish(bot, chatId, messageId);
+                break;
+
+            case 'yes_questions_english':
+                await startQuestionsFlowEnglish(bot, chatId, messageId);
+                break;
+
+            case 'no_questions_english':
+                await handleNoQuestionsEnglish(bot, chatId, messageId);
+                break;
+
+            case 'description_seizures_english':
+                await handleSeizureDescriptionEnglish(bot, chatId, messageId, 'Convulsions');
+                break;
+
+            case 'description_loss_of_consciousness_english':
+                await handleSeizureDescriptionEnglish(bot, chatId, messageId, 'Loss of consciousness');
+                break;
+
+            case 'description_uncoordinated_movements_english':
+                await handleSeizureDescriptionEnglish(bot, chatId, messageId, 'Uncoordinated movements');
+                break;
+
+            case 'description_hallucinations_english':
+                await handleSeizureDescriptionEnglish(bot, chatId, messageId, 'Hallucinations');
+                break;
+
+            case 'description_custom_english':
+                await bot.editMessageText("Describe your custom seizure:", {
+                    chat_id: chatId,
+                    message_id: messageId
+                });
+                awaitingCustomDescriptionEnglish.add(chatId);
+                break;
+
+            case 'trigger_medication_skip_english':
+                await handleTriggerDescriptionEnglish(bot, chatId, messageId, 'Missed medication');
+                break;
+
+            case 'trigger_bright_light_english':
+                await handleTriggerDescriptionEnglish(bot, chatId, messageId, 'Bright light');
+                break;
+
+            case 'trigger_lack_of_sleep_english':
+                await handleTriggerDescriptionEnglish(bot, chatId, messageId, 'Lack of sleep');
+                break;
+
+            case 'trigger_alcohol_english':
+                await handleTriggerDescriptionEnglish(bot, chatId, messageId, 'Alcohol');
+                break;
+
+            case 'trigger_stress_english':
+                await handleTriggerDescriptionEnglish(bot, chatId, messageId, 'Stress');
+                break;
+
+            case 'trigger_custom_english':
+                await bot.editMessageText("Describe your custom trigger:", {
+                    chat_id: chatId,
+                    message_id: messageId
+                });
+                awaitingCustomTriggerEnglish.add(chatId);
+                break;
+
+            case 'repeated_1_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 1);
+                break;
+
+            case 'repeated_2_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 2);
+                break;
+
+            case 'repeated_3_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 3);
+                break;
+
+            case 'repeated_4_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 4);
+                break;
+
+            case 'repeated_5_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 5);
+                break;
+
+            case 'repeated_6plus_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, '6+');
+                break;
+
+            case 'repeated_no_english':
+                await handleRepeatedSeizuresEnglish(bot, chatId, messageId, 0);
+                break;
+
+            case 'back_to_profile':
+                // Return to profile function can be added here
+                break;
+        }
+
+        try {
+            await bot.answerCallbackQuery(query.id);
+        } catch (error) {
+            console.error('Error answering callback query:', error);
+        }
+    });
 }
 
 module.exports.setupCallbackHandler = setupCallbackHandlerEnglish;

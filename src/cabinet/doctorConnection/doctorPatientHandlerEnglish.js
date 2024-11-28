@@ -2,6 +2,8 @@ const db = require('../../config/db');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const ExcelJS = require('exceljs'); // Adding ExcelJS
+const XLSX = require('xlsx');
 
 class DoctorPatientHandlerEnglish {
     constructor(bot) {
@@ -29,20 +31,9 @@ class DoctorPatientHandlerEnglish {
                 inline_keyboard: [
                     [{text: 'Message history', callback_data: 'view_messages'}],
                     [{text: 'Send a message', callback_data: 'choose_message_type'}],
+                    [{text: 'Doctor information', callback_data: 'doctor_info'}],
                     [{text: 'Change doctor', callback_data: 'change_doctor'}],
                     [{text: 'Back to profile', callback_data: 'back_to_profile'}]
-                ]
-            }
-        });
-    }
-
-    async showMessageTypeChoiceEnglish(chatId) {
-        await this.bot.sendMessage(chatId, "Select message type:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{text: 'Send text message', callback_data: 'send_text_message'}],
-                    [{text: 'Send file', callback_data: 'send_file'}],
-                    [{text: 'Back', callback_data: 'doctor_connection'}]
                 ]
             }
         });
@@ -58,9 +49,8 @@ class DoctorPatientHandlerEnglish {
             }
         };
         const message = await this.bot.sendMessage(chatId, "Please enter the doctor key:", options);
-        this.keyMessageId = message.message_id; // Сохраняем message_id
+        this.keyMessageId = message.message_id; // Save message_id
     }
-
 
     async showInvalidKeyMenuEnglish(chatId) {
         this.waitingForKey.delete(chatId);
@@ -77,7 +67,6 @@ class DoctorPatientHandlerEnglish {
     async handleKeyInputEnglish(chatId, messageText) {
         if (!this.waitingForKey.has(chatId)) return;
 
-        // Удаляем кнопку "Back to profile"
         if (this.keyMessageId) {
             try {
                 await this.bot.editMessageReplyMarkup(
@@ -87,7 +76,7 @@ class DoctorPatientHandlerEnglish {
             } catch (error) {
                 console.error('Error removing keyboard:', error);
             }
-            this.keyMessageId = null; // Очистка сохраненного message_id
+            this.keyMessageId = null; // Clear saved message_id
         }
 
         const doctorResult = await db.query('SELECT * FROM doctors WHERE doctor_key = $1', [messageText]);
@@ -96,83 +85,178 @@ class DoctorPatientHandlerEnglish {
             this.waitingForKey.delete(chatId);
             this.waitingForName.add(chatId);
             await db.query('UPDATE users SET doctor_key = $1, key_valid = TRUE WHERE chat_id = $2', [messageText, chatId]);
-            await this.bot.sendMessage(chatId, "Key is valid! Please enter your name:");
+            await this.bot.sendMessage(chatId, "Key is valid! Please enter your full name (e.g., Ivanov Ivan Ivanovich):");
         } else {
             await this.showInvalidKeyMenuEnglish(chatId);
         }
     }
 
-
     async handleNameInputEnglish(chatId, messageText) {
         if (!this.waitingForName.has(chatId)) return;
 
-        this.waitingForName.delete(chatId);
-        await db.query('UPDATE users SET name = $1 WHERE chat_id = $2', [messageText, chatId]);
-        await this.showDoctorMenuEnglish(chatId);
+        const nameParts = messageText.trim().split(/\s+/);
+        if (nameParts.length < 2) {
+            await this.bot.sendMessage(chatId, "Please enter your full name in the format: Lastname Firstname Patronymic");
+            return;
+        }
+
+        try {
+            const surname = nameParts[0]; // Take only the surname for the name field
+
+            await db.query('UPDATE users SET name = $1, fio = $2 WHERE chat_id = $3', [surname, messageText, chatId]);
+            this.waitingForName.delete(chatId);
+            await this.showDoctorMenuEnglish(chatId);
+        } catch (error) {
+            console.error('Error updating user data:', error);
+            await this.bot.sendMessage(chatId, "An error occurred while saving data. Please try again.");
+        }
     }
 
     async handleViewMessagesEnglish(chatId) {
         const messages = await db.query(`
-        SELECT message_text, message_date, 'You' AS sender
+        SELECT user_id AS patient_id, doctor_key, message_text, message_date, sender_type
         FROM messages
         WHERE user_id = $1
-        
+
         UNION ALL
-        
-        SELECT message_text, message_date, 'Doctor' AS sender
+
+        SELECT patient_id, doctor_key, message_text, message_date, NULL AS sender_type
         FROM doctors_messages
         WHERE patient_id = $1
-        
         ORDER BY message_date DESC
     `, [chatId]);
 
-        let messageText = "";
         if (messages.rows.length > 0) {
-            messageText = "Message history:\n\n";
-            for (const msg of messages.rows) {
-                messageText += `${msg.sender} (${new Date(msg.message_date).toLocaleString()}):\n`;
-                if (msg.message_text) {
-                    messageText += `${msg.message_text}\n`;
+            const excelData = [];
+            excelData.push(['Sender', 'Message Text', 'Date Sent']); // Header
+
+            messages.rows.forEach(msg => {
+                const sender = msg.sender_type === 'patient' ? 'Patient' : 'Doctor';
+                const date = new Date(msg.message_date).toLocaleString();
+
+                excelData.push([sender, msg.message_text, date]);
+            });
+
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Messages');
+
+            const wscols = [
+                { wpx: 100 },
+                { wpx: 300 },
+                { wpx: 150 }
+            ];
+            ws['!cols'] = wscols;
+
+            const borderStyle = {
+                top: { style: 'thin', color: { rgb: '000000' } },
+                left: { style: 'thin', color: { rgb: '000000' } },
+                bottom: { style: 'thin', color: { rgb: '000000' } },
+                right: { style: 'thin', color: { rgb: '000000' } }
+            };
+
+            const fillStyle = {
+                fill: {
+                    fgColor: { rgb: 'D0EFFF' }
                 }
-                messageText += '\n';
+            };
+
+            for (let row = 0; row < excelData.length; row++) {
+                for (let col = 0; col < excelData[row].length; col++) {
+                    const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
+
+                    if (!cell) continue;
+
+                    if (row === 0) {
+                        cell.s = { border: borderStyle, fill: fillStyle, font: { bold: true } };
+                    } else {
+                        cell.s = { border: borderStyle };
+                    }
+                }
             }
-        } else {
-            messageText = "You have no messages.";
-        }
 
-        await this.bot.sendMessage(chatId, messageText, {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: 'Back', callback_data: 'doctor_connection' }]
-                ]
-            }
-        });
-    }
+            const dirPath = path.join(__dirname, '../../../public');
+            const filePath = path.join(dirPath, 'messages.xlsx');
 
-
-    async handleSendTextMessageEnglish(chatId) {
-        this.waitingForMessage.add(chatId);
-        const message = await this.bot.sendMessage(chatId,
-            "Write your message:", {
+            await this.bot.sendMessage(chatId, "Here is your message history:", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{text: 'Cancel', callback_data: 'doctor_connection'}]
+                        [{ text: 'Back', callback_data: 'doctor_connection' }]
                     ]
                 }
             });
+
+            XLSX.writeFile(wb, filePath);
+
+            await this.bot.sendDocument(chatId, fs.createReadStream(filePath), {}, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Back', callback_data: 'doctor_connection' }]
+                    ]
+                }
+            });
+
+            fs.unlink(filePath, (err) => {
+                if (err) console.error('Error deleting file:', err);
+            });
+        } else {
+            await this.bot.sendMessage(chatId, "You have no messages.", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Back', callback_data: 'doctor_connection' }]
+                    ]
+                }
+            });
+        }
+    }
+
+    async handleSendTextMessageEnglish(chatId) {
+        const isBanned = await this.checkUserBan(chatId);
+
+        if (isBanned) {
+            await this.bot.sendMessage(chatId, "The doctor has prohibited you from sending messages", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Back', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+            return;
+        }
+
+        this.waitingForMessage.add(chatId);
+        const message = await this.bot.sendMessage(chatId, "Write your message:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Cancel', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
         this.messageToEdit = message.message_id;
     }
 
     async handleSendFileEnglish(chatId) {
-        this.waitingForFile.add(chatId);
-        const message = await this.bot.sendMessage(chatId,
-            "Send a file (document, photo, video, etc.):", {
+        const isBanned = await this.checkUserBan(chatId);
+
+        if (isBanned) {
+            await this.bot.sendMessage(chatId, "The doctor has prohibited you from sending messages", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{text: 'Cancel', callback_data: 'doctor_connection'}]
+                        [{text: 'Back', callback_data: 'doctor_connection'}]
                     ]
                 }
             });
+            return;
+        }
+
+        this.waitingForFile.add(chatId);
+        const message = await this.bot.sendMessage(chatId, "Send a file (document, photo, video, etc.):", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Cancel', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
         this.messageToEdit = message.message_id;
     }
 
@@ -326,34 +410,99 @@ class DoctorPatientHandlerEnglish {
     async handleChangeDoctorEnglish(chatId) {
         await db.query('UPDATE users SET doctor_key = NULL, key_valid = FALSE WHERE chat_id = $1', [chatId]);
         await this.requestDoctorKeyEnglish(chatId);
+        this.clearWaitingStates(chatId); // Очищаем предыдущие состояния
     }
 
+    async showMessageTypeChoiceEnglish(chatId) {
+        await this.bot.sendMessage(chatId, "Select message type:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Send text message', callback_data: 'send_text_message'}],
+                    [{text: 'Send file', callback_data: 'send_file'}],
+                    [{text: 'Back', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
+    }
+
+    async handleDoctorInfoEnglish(chatId) {
+        try {
+            const userResult = await db.query('SELECT doctor_key FROM users WHERE chat_id = $1', [chatId]);
+            const doctorKey = userResult.rows[0]?.doctor_key;
+
+            if (!doctorKey) {
+                await this.bot.sendMessage(chatId, "Doctor information is not available.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: 'Back', callback_data: 'doctor_connection'}]
+                        ]
+                    }
+                });
+                return;
+            }
+
+            const doctorResult = await db.query('SELECT name, description FROM doctors WHERE doctor_key = $1', [doctorKey]);
+            const doctor = doctorResult.rows[0];
+
+            if (!doctor) {
+                await this.bot.sendMessage(chatId, "Doctor information not found.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: 'Back', callback_data: 'doctor_connection'}]
+                        ]
+                    }
+                });
+                return;
+            }
+
+            const message = `Your doctor: ${doctor.name}\nBrief information about the doctor:\n${doctor.description || 'Information not available'}`;
+
+            await this.bot.sendMessage(chatId, message, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Back', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching doctor info:', error);
+            await this.bot.sendMessage(chatId, "An error occurred while retrieving doctor information.", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Back', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        }
+    }
+
+    async checkUserBan(chatId) {
+        const userResult = await db.query('SELECT doctor_key FROM users WHERE chat_id = $1', [chatId]);
+        if (!userResult.rows.length) return false;
+
+        const doctorKey = userResult.rows[0].doctor_key;
+        const banResult = await db.query(
+            'SELECT * FROM bans WHERE user_id = $1 AND doctor_key = $2',
+            [chatId, doctorKey]
+        );
+
+        return banResult.rows.length > 0;
+    }
     async handleMessageEnglish(msg) {
         const chatId = msg.chat.id;
         const messageText = msg.text;
 
-        if (this.isWaitingForInputEnglish(chatId)) {
-            if (messageText === '/start' || messageText === '/myProfile') {
-                return;
+        if (msg.text) {
+            if (this.waitingForMessage.has(chatId)) {
+                await this.handleTextMessageEnglish(chatId, messageText);
+            } else if (this.waitingForFile.has(chatId)) {
+                await this.handleFileMessageEnglish(chatId, messageText);
+            } else if (this.waitingForName.has(chatId)) {
+                await this.handleNameInputEnglish(chatId, messageText);
+            } else if (this.waitingForKey.has(chatId)) {
+                await this.handleKeyInputEnglish(chatId, messageText);
             }
         }
-
-        if (this.waitingForKey.has(chatId)) {
-            await this.handleKeyInputEnglish(chatId, messageText);
-        } else if (this.waitingForName.has(chatId)) {
-            await this.handleNameInputEnglish(chatId, messageText);
-        } else if (this.waitingForMessage.has(chatId)) {
-            await this.handleTextMessageEnglish(chatId, messageText);
-        } else if (this.waitingForFile.has(chatId)) {
-            await this.handleFileMessageEnglish(chatId, msg);
-        }
-    }
-
-    isWaitingForInputEnglish(chatId) {
-        return this.waitingForKey.has(chatId) ||
-            this.waitingForName.has(chatId) ||
-            this.waitingForMessage.has(chatId) ||
-            this.waitingForFile.has(chatId);
     }
 
     async handleCallbackEnglish(callbackQuery) {
@@ -391,6 +540,9 @@ class DoctorPatientHandlerEnglish {
                 break;
             case 'send_file':
                 await this.handleSendFileEnglish(chatId);
+                break;
+            case 'doctor_info':
+                await this.handleDoctorInfoEnglish(chatId);
                 break;
             case 'change_doctor':
                 await this.handleChangeDoctorEnglish(chatId);

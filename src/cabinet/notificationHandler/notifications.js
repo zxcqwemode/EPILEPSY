@@ -1,47 +1,61 @@
-const db = require('../../config/db');
 const cron = require('node-cron');
+const db = require('../../config/db');
+const TelegramBot = require('node-telegram-bot-api');
 
-// Функция для отправки уведомления
-async function sendNotification(bot, chatId, message) {
-    await bot.sendMessage(chatId, message);
-}
+const bot = new TelegramBot(process.env.BOT_TOKEN);
 
-// Функция для планирования уведомлений
-async function scheduleNotifications(bot) {
-    // Запрашиваем всех пользователей из базы данных
-    const users = await db.query(
-        'SELECT chat_id, language, notification_text, notification_hour_msk FROM users WHERE notification_hour_msk IS NOT NULL'
-    );
-
-    users.rows.forEach(user => {
-        const { chat_id, language, notification_text, notification_hour_msk } = user;
-
-        // Определяем текст уведомления
-        let message;
-        if (notification_text && notification_text.trim()) {
-            // Если есть текст уведомления, используем его
-            message = notification_text;
-        } else {
-            // В зависимости от языка отправляем соответствующее сообщение
-            if (language === 'Русский') {
-                message = "Привет, это я - EpilepsyBot! Я пишу напомнить о приеме препаратов.";
-            } else if (language === 'English') {
-                message = "Hello, I am EpilepsyBot! I'm here to remind you to take your medication.";
-            }
-        }
-
-        // Рассчитываем время для cron на основе notification_hour_msk
-        const userHour = notification_hour_msk; // Используем notification_hour_msk
-        const cronTime = `0 ${userHour} * * *`; // Каждый день в указанное время
-
-        // Запускаем задачу cron на определенное время каждый день
-        cron.schedule(cronTime, async () => {
-            await sendNotification(bot, chat_id, message);
+async function sendNotifications() {
+    try {
+        // Получаем текущее время в Московском часовом поясе (только часы)
+        const mskHour = new Date().toLocaleTimeString('ru-RU', {
+            timeZone: 'Europe/Moscow',
+            hour: '2-digit',
         });
 
-        console.log(`Уведомление запланировано для ${chat_id} на ${userHour}:00 по МСК.`);
-    });
+        // SQL-запрос для получения всех уведомлений с часовым поясом и языком пользователя
+        const query = `
+            SELECT n.*, u.timezone_gmt, u.language 
+            FROM notifications n
+            JOIN users u ON n.user_id = u.chat_id
+        `;
+
+        const result = await db.query(query);
+
+        // Фильтруем уведомления, которые должны отправляться в 00 часов МСК
+        const notificationsToSend = result.rows.filter((notification) => {
+            const userTimeInHours = parseInt(notification.notification_time.split(':')[0], 10);
+            const timezoneGmt = notification.timezone_gmt;
+
+            // Переводим пользовательское время в МСК
+            const mskNotificationHour = (userTimeInHours - timezoneGmt + 3 + 24) % 24;
+            return mskNotificationHour === parseInt(mskHour, 10);
+        });
+
+        // Отправляем уведомления каждому пользователю
+        for (const notification of notificationsToSend) {
+            // Формируем текст уведомления на соответствующем языке
+            let messageText;
+            if (notification.language === 'Русский') {
+                messageText = `Привет, это EpilepsyBot, пишу напомнить тебе принять препарат ${notification.medication}, доза ${notification.dose}`;
+            } else if (notification.language === 'English') {
+                messageText = `Hello, this is EpilepsyBot reminding you to take your medication ${notification.medication}, dose ${notification.dose}`;
+            } else {
+                // Если язык не указан, можно задать дефолтный язык, например, русский
+                messageText = `Привет, это EpilepsyBot, пишу напомнить тебе принять препарат ${notification.medication}, доза ${notification.dose}`;
+            }
+
+            try {
+                await bot.sendMessage(notification.user_id, messageText);
+            } catch (sendError) {
+                console.error(`Ошибка отправки уведомления пользователю ${notification.user_id}:`, sendError);
+            }
+        }
+    } catch (error) {
+        console.error('Ошибка при отправке уведомлений:', error);
+    }
 }
 
-// Экспортируем функцию для вызова из других модулей
-module.exports = scheduleNotifications;
+// Запускаем крон каждый час для проверки уведомлений
+cron.schedule('0 * * * *', sendNotifications);
+
+module.exports = sendNotifications;

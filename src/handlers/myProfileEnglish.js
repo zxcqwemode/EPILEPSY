@@ -21,8 +21,6 @@ Your Profile:
 - ID: ${chat_id}
 - Gender: ${gender || 'Not specified'}
 - Timezone (GMT): ${timezone_gmt}
-- Notification period: ${notification_period || 'Not specified'}
-- Notification hour: ${notification_hour_msk+timezone_gmt-3 || 'Not specified'}
         `;
 
         // Определяем кнопки для личного кабинета
@@ -30,15 +28,18 @@ Your Profile:
             reply_markup: {
                 inline_keyboard: [
                     [
-                        { text: 'Information about the disease', callback_data: 'info_about_disease' },
-                        { text: 'Notifications', callback_data: 'notifications' },
+                        { text: 'Information about the disease 🩺', callback_data: 'info_about_disease' }
                     ],
                     [
-                        { text: 'Seizure Calendar', callback_data: 'seizure_calendar' },
-                        { text: 'Seizure', callback_data: 'start_timer_seizure' },
+                        { text: 'Seizure Calendar 📅', callback_data: 'seizure_calendar' },
+                        { text: 'Seizure ⚡', callback_data: 'start_timer_seizure' },
                     ],
                     [
-                        { text: 'Contact Doctor', callback_data: 'doctor_connection' },
+                        { text: 'Statistic 📊', callback_data: 'statistic' },
+                        { text: 'Reminders ⏰', callback_data: 'notifications' },
+                    ],
+                    [
+                        { text: 'Contact Doctor 👨‍⚕️', callback_data: 'doctor_connection' }
                     ],
                 ],
             },

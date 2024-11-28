@@ -2,7 +2,9 @@ const db = require('../../config/db');
 
 let seizureStartTimesRussian = new Map();
 let awaitingDescriptionRussian = new Set();
+let awaitingCustomDescriptionRussian = new Set();
 let awaitingTriggerRussian = new Set();
+let awaitingCustomTriggerRussian = new Set();
 
 module.exports = async function seizureRussian(bot, chatId, messageId) {
     const message = "Нажмите \"Старт\", если у вас начался приступ";
@@ -24,140 +26,27 @@ module.exports = async function seizureRussian(bot, chatId, messageId) {
     });
 };
 
-function setupCallbackHandlerRussian(bot) {
-    // Обработчик текстовых сообщений
-    bot.on('message', async (msg) => {
-        const chatId = msg.chat.id;
 
-        if (awaitingDescriptionRussian.has(chatId)) {
-            await handleSeizureDescriptionRussian(bot, chatId, msg.text);
-            awaitingDescriptionRussian.delete(chatId);
-            return;
-        }
-
-        if (awaitingTriggerRussian.has(chatId)) {
-            await handleTriggerDescriptionRussian(bot, chatId, msg.text);
-            awaitingTriggerRussian.delete(chatId);
-            return;
-        }
-    });
-
-    // Обработчик кнопок
-    bot.on('callback_query', async (query) => {
-        const chatId = query.message.chat.id;
-        const messageId = query.message.message_id;
-
-        switch (query.data) {
-            case 'start_seizure_russian':
-                await handleStartSeizureRussian(bot, chatId, messageId);
-                break;
-            case 'stop_seizure_russian':
-                await handleStopSeizureRussian(bot, chatId, messageId);
-                break;
-            case 'yes_questions_russian':
-                await startQuestionsFlowRussian(bot, chatId, messageId);
-                break;
-            case 'no_questions_russian':
-                await handleNoQuestionsRussian(bot, chatId, messageId);
-                break;
-            case 'repeated_yes_russian':
-                await showRepeatedSeizuresButtonsRussian(bot, chatId, messageId);
-                break;
-            case 'repeated_no_russian':
-                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 'No');
-                break;
-            case 'repeated_1_russian':
-            case 'repeated_2_russian':
-            case 'repeated_3_russian':
-            case 'repeated_4_russian':
-            case 'repeated_5_russian':
-            case 'repeated_6plus_russian':
-                const count = query.data.replace('repeated_', '').replace('_russian', '');
-                await handleRepeatedSeizuresRussian(bot, chatId, messageId, count);
-                break;
-            case 'back_to_profile_russian':
-                // Здесь должна быть функция возврата в профиль
-                break;
-        }
-
-        try {
-            await bot.answerCallbackQuery(query.id);
-        } catch (error) {
-            console.error('Error answering callback query:', error);
-        }
-    });
-}
 
 async function startQuestionsFlowRussian(bot, chatId, messageId) {
-    const message = "Опишите, как выглядел приступ (например, судороги, потеря сознания, некоординированные движения, галлюцинации и т. д.):";
-
-    await bot.editMessageText(message, {
-        chat_id: chatId,
-        message_id: messageId
-    });
-
-    awaitingDescriptionRussian.add(chatId);
-}
-
-async function handleSeizureDescriptionRussian(bot, chatId, description) {
-    const currentDate = new Date().toISOString().split('T')[0];
-
-    try {
-        await db.query(
-            'UPDATE calendar SET seizure_description = $1 WHERE user_id = $2 AND date = $3',
-            [description, chatId, currentDate]
-        );
-
-        const message = "Были ли провакаторы приступа? (Пропуск приема препарата, яркий свет, недостаток сна, алкоголь, стресс или свой вариант):";
-        await bot.sendMessage(chatId, message);
-
-        awaitingTriggerRussian.add(chatId);
-    } catch (error) {
-        console.error('Error saving seizure description:', error);
-    }
-}
-
-async function handleTriggerDescriptionRussian(bot, chatId, trigger) {
-    const currentDate = new Date().toISOString().split('T')[0];
-
-    try {
-        await db.query(
-            'UPDATE calendar SET trigger = $1 WHERE user_id = $2 AND date = $3',
-            [trigger, chatId, currentDate]
-        );
-
-        const message = "Были ли повторные приступы в течение одного дня?";
-        const options = {
-            reply_markup: {
-                inline_keyboard: [
-                    [
-                        { text: 'Да', callback_data: 'repeated_yes_russian' },
-                        { text: 'Нет', callback_data: 'repeated_no_russian' }
-                    ]
-                ]
-            }
-        };
-
-        await bot.sendMessage(chatId, message, options);
-    } catch (error) {
-        console.error('Error saving trigger:', error);
-    }
-}
-
-async function showRepeatedSeizuresButtonsRussian(bot, chatId, messageId) {
-    const message = "Сколько было повторных приступов?";
+    const message = "Как выглядел приступ?";
     const options = {
         reply_markup: {
             inline_keyboard: [
                 [
-                    { text: '1', callback_data: 'repeated_1_russian' },
-                    { text: '2', callback_data: 'repeated_2_russian' },
-                    { text: '3', callback_data: 'repeated_3_russian' }
+                    { text: 'Судороги', callback_data: 'description_seizures' }
                 ],
                 [
-                    { text: '4', callback_data: 'repeated_4_russian' },
-                    { text: '5', callback_data: 'repeated_5_russian' },
-                    { text: '6+', callback_data: 'repeated_6plus_russian' }
+                    { text: 'Потеря сознания', callback_data: 'description_loss_of_consciousness' }
+                ],
+                [
+                    { text: 'Некоординированные движения', callback_data: 'description_uncoordinated_movements' }
+                ],
+                [
+                    { text: 'Галлюцинации', callback_data: 'description_hallucinations' }
+                ],
+                [
+                    { text: 'Свой вариант', callback_data: 'description_custom' }
                 ]
             ]
         }
@@ -170,6 +59,97 @@ async function showRepeatedSeizuresButtonsRussian(bot, chatId, messageId) {
     });
 }
 
+async function handleSeizureDescriptionRussian(bot, chatId, messageId, description) {
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    try {
+        await db.query(
+            'UPDATE calendar SET seizure_description = $1 WHERE user_id = $2 AND date = $3',
+            [description, chatId, currentDate]
+        );
+
+        // Сохраняем текущее сообщение с описанием
+        await bot.editMessageText(`Как выглядел приступ?\n${description}`, {
+            chat_id: chatId,
+            message_id: messageId
+        });
+
+        const message = "Были ли провокаторы приступа?";
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: 'Пропуск препарата', callback_data: 'trigger_medication_skip' }
+                    ],
+                    [
+                        { text: 'Яркий свет', callback_data: 'trigger_bright_light' }
+                    ],
+                    [
+                        { text: 'Недостаток сна', callback_data: 'trigger_lack_of_sleep' }
+                    ],
+                    [
+                        { text: 'Алкоголь', callback_data: 'trigger_alcohol' }
+                    ],
+                    [
+                        { text: 'Стресс', callback_data: 'trigger_stress' }
+                    ],
+                    [
+                        { text: 'Свой вариант', callback_data: 'trigger_custom' }
+                    ]
+                ]
+            }
+        };
+
+        await bot.sendMessage(chatId, message, options);
+    } catch (error) {
+        console.error('Error saving seizure description:', error);
+    }
+}
+
+
+async function handleTriggerDescriptionRussian(bot, chatId, messageId, trigger) {
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    try {
+        await db.query(
+            'UPDATE calendar SET trigger = $1 WHERE user_id = $2 AND date = $3',
+            [trigger, chatId, currentDate]
+        );
+
+        // Сохраняем текущее сообщение с триггером
+        await bot.editMessageText(`Были ли провокаторы приступа?\n${trigger}`, {
+            chat_id: chatId,
+            message_id: messageId
+        });
+
+        const message = "Сколько было повторных приступов?";
+        const options = {
+            reply_markup: {
+                inline_keyboard: [
+                    [
+                        { text: '1', callback_data: 'repeated_1_russian' },
+                        { text: '2', callback_data: 'repeated_2_russian' },
+                        { text: '3', callback_data: 'repeated_3_russian' }
+                    ],
+                    [
+                        { text: '4', callback_data: 'repeated_4_russian' },
+                        { text: '5', callback_data: 'repeated_5_russian' },
+                        { text: '6+', callback_data: 'repeated_6plus_russian' }
+                    ],
+                    [
+                        { text: 'Не было', callback_data: 'repeated_no_russian' }
+                    ]
+                ]
+            }
+        };
+
+        await bot.sendMessage(chatId, message, options);
+    } catch (error) {
+        console.error('Error saving trigger:', error);
+    }
+}
+
+
 async function handleRepeatedSeizuresRussian(bot, chatId, messageId, count) {
     const currentDate = new Date().toISOString().split('T')[0];
 
@@ -178,6 +158,12 @@ async function handleRepeatedSeizuresRussian(bot, chatId, messageId, count) {
             'UPDATE calendar SET repeated_seizures = $1 WHERE user_id = $2 AND date = $3',
             [count, chatId, currentDate]
         );
+
+        // Сохраняем текущее сообщение с количеством повторных приступов
+        await bot.editMessageText(`Сколько было повторных приступов?\n${count === 0 ? 'Не было' : count}`, {
+            chat_id: chatId,
+            message_id: messageId
+        });
 
         const message = "Спасибо за ваши ответы";
         const options = {
@@ -190,15 +176,12 @@ async function handleRepeatedSeizuresRussian(bot, chatId, messageId, count) {
             }
         };
 
-        await bot.editMessageText(message, {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: options.reply_markup
-        });
+        await bot.sendMessage(chatId, message, options);
     } catch (error) {
         console.error('Error saving repeated seizures:', error);
     }
 }
+
 
 async function handleNoQuestionsRussian(bot, chatId, messageId) {
     const message = "Спасибо за ответ";
@@ -240,7 +223,171 @@ async function handleStartSeizureRussian(bot, chatId, messageId) {
     });
 }
 
-async function handleStopSeizureRussian(bot, chatId, messageId) {
+function setupCallbackHandlerRussian(bot) {
+    bot.on('message', async (msg) => {
+        const chatId = msg.chat.id;
+
+        if (awaitingCustomDescriptionRussian.has(chatId)) {
+            const messageId = msg.message_id - 1; // Предыдущее сообщение
+            try {
+                // Добавляем проверку на пустое сообщение
+                if (msg.text && msg.text.trim() !== '') {
+                    await handleSeizureDescriptionRussian(bot, chatId, messageId, msg.text);
+                } else {
+                    await bot.sendMessage(chatId, "Пожалуйста, введите корректное описание приступа.");
+                }
+            } catch (error) {
+                console.error('Error editing message for custom description:', error.message);
+                // Отправляем сообщение пользователю с информацией об ошибке
+                await bot.sendMessage(chatId, "Произошла ошибка при сохранении описания. Пожалуйста, попробуйте снова.");
+            } finally {
+                awaitingCustomDescriptionRussian.delete(chatId);
+            }
+            return;
+        }
+
+        if (awaitingCustomTriggerRussian.has(chatId)) {
+            const messageId = msg.message_id - 1; // Предыдущее сообщение
+            try {
+                // Добавляем проверку на пустое сообщение
+                if (msg.text && msg.text.trim() !== '') {
+                    await handleTriggerDescriptionRussian(bot, chatId, messageId, msg.text);
+                } else {
+                    await bot.sendMessage(chatId, "Пожалуйста, введите корректный провокатор приступа.");
+                }
+            } catch (error) {
+                console.error('Error editing message for custom trigger:', error.message);
+                // Отправляем сообщение пользователю с информацией об ошибке
+                await bot.sendMessage(chatId, "Произошла ошибка при сохранении провокатора. Пожалуйста, попробуйте снова.");
+            } finally {
+                awaitingCustomTriggerRussian.delete(chatId);
+            }
+            return;
+        }
+    });
+
+
+    // Обработчик кнопок (дополнительные обработчики)
+    bot.on('callback_query', async (query) => {
+        const chatId = query.message.chat.id;
+        const messageId = query.message.message_id;
+
+        switch (query.data) {
+            // Начало записи приступа
+            case 'start_seizure_russian':
+                await handleStartSeizureRussian(bot, chatId, messageId);
+                break;
+
+            case 'stop_seizure_russian':
+                await handleStopSeizureRussian(bot, chatId, messageId);
+                break;
+
+            // Вопросы о приступе
+            case 'yes_questions_russian':
+                await startQuestionsFlowRussian(bot, chatId, messageId);
+                break;
+
+            case 'no_questions_russian':
+                await handleNoQuestionsRussian(bot, chatId, messageId);
+                break;
+
+            // Описание приступа
+            case 'description_seizures':
+                await handleSeizureDescriptionRussian(bot, chatId, messageId, 'Судороги');
+                break;
+
+            case 'description_loss_of_consciousness':
+                await handleSeizureDescriptionRussian(bot, chatId, messageId, 'Потеря сознания');
+                break;
+
+            case 'description_uncoordinated_movements':
+                await handleSeizureDescriptionRussian(bot, chatId, messageId, 'Некоординированные движения');
+                break;
+
+            case 'description_hallucinations':
+                await handleSeizureDescriptionRussian(bot, chatId, messageId, 'Галлюцинации');
+                break;
+
+            case 'description_custom':
+                await bot.editMessageText("Опишите свой вариант:", {
+                    chat_id: chatId,
+                    message_id: messageId
+                });
+                awaitingCustomDescriptionRussian.add(chatId);
+                break;
+
+            // Триггеры приступа
+            case 'trigger_medication_skip':
+                await handleTriggerDescriptionRussian(bot, chatId, messageId, 'Пропуск препарата');
+                break;
+
+            case 'trigger_bright_light':
+                await handleTriggerDescriptionRussian(bot, chatId, messageId, 'Яркий свет');
+                break;
+
+            case 'trigger_lack_of_sleep':
+                await handleTriggerDescriptionRussian(bot, chatId, messageId, 'Недостаток сна');
+                break;
+
+            case 'trigger_alcohol':
+                await handleTriggerDescriptionRussian(bot, chatId, messageId, 'Алкоголь');
+                break;
+
+            case 'trigger_stress':
+                await handleTriggerDescriptionRussian(bot, chatId, messageId, 'Стресс');
+                break;
+
+            case 'trigger_custom':
+                await bot.editMessageText("Опишите свой вариант провокатора:", {
+                    chat_id: chatId,
+                    message_id: messageId
+                });
+                awaitingCustomTriggerRussian.add(chatId);
+                break;
+            // Повторные приступы
+            case 'repeated_1_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 1);
+                break;
+
+            case 'repeated_2_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 2);
+                break;
+
+            case 'repeated_3_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 3);
+                break;
+
+            case 'repeated_4_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 4);
+                break;
+
+            case 'repeated_5_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 5);
+                break;
+
+            case 'repeated_6plus_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, '6+');
+                break;
+
+            case 'repeated_no_russian':
+                await handleRepeatedSeizuresRussian(bot, chatId, messageId, 0);
+                break;
+
+            // Возврат в профиль
+            case 'back_to_profile':
+                // Добавьте вызов функции возврата в профиль, если она реализована
+                break;
+        }
+
+        try {
+            await bot.answerCallbackQuery(query.id);
+        } catch (error) {
+            console.error('Error answering callback query:', error);
+        }
+    });
+}
+
+    async function handleStopSeizureRussian(bot, chatId, messageId) {
     const startTime = seizureStartTimesRussian.get(chatId);
     if (startTime) {
         const duration = new Date() - startTime;

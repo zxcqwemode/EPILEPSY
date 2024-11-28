@@ -2,6 +2,9 @@ const db = require('../../config/db');
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
+const ExcelJS = require('exceljs'); // Добавляем ExcelJS
+const XLSX = require('xlsx');
+
 
 class DoctorPatientHandlerRussian {
     constructor(bot) {
@@ -29,6 +32,7 @@ class DoctorPatientHandlerRussian {
                 inline_keyboard: [
                     [{text: 'История сообщений', callback_data: 'view_messages'}],
                     [{text: 'Отправить сообщение', callback_data: 'choose_message_type'}],
+                    [{text: 'Информация о враче', callback_data: 'doctor_info'}],
                     [{text: 'Сменить врача', callback_data: 'change_doctor'}],
                     [{text: 'Назад в профиль', callback_data: 'back_to_profile'}]
                 ]
@@ -36,17 +40,6 @@ class DoctorPatientHandlerRussian {
         });
     }
 
-    async showMessageTypeChoiceRussian(chatId) {
-        await this.bot.sendMessage(chatId, "Выберите тип сообщения:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{text: 'Отправить текстовое сообщение', callback_data: 'send_text_message'}],
-                    [{text: 'Отправить файл', callback_data: 'send_file'}],
-                    [{text: 'Назад', callback_data: 'doctor_connection'}]
-                ]
-            }
-        });
-    }
 
     async requestDoctorKeyRussian(chatId) {
         this.waitingForKey.add(chatId);
@@ -87,7 +80,7 @@ class DoctorPatientHandlerRussian {
             } catch (error) {
                 console.error('Error removing keyboard:', error);
             }
-            this.keyMessageId = null; // Очистка сохраненного message_id
+            this.keyMessageId = null;
         }
 
         const doctorResult = await db.query('SELECT * FROM doctors WHERE doctor_key = $1', [messageText]);
@@ -96,7 +89,11 @@ class DoctorPatientHandlerRussian {
             this.waitingForKey.delete(chatId);
             this.waitingForName.add(chatId);
             await db.query('UPDATE users SET doctor_key = $1, key_valid = TRUE WHERE chat_id = $2', [messageText, chatId]);
-            await this.bot.sendMessage(chatId, "Ключ верный! Пожалуйста, введите ваше имя:");
+            await this.bot.sendMessage(chatId,
+                "Ключ верный!\n" +
+                "Введите пожалуйста свое ФИО.\n" +
+                "Например: Иванов Иван Иванович"
+            );
         } else {
             await this.showInvalidKeyMenuRussian(chatId);
         }
@@ -106,51 +103,217 @@ class DoctorPatientHandlerRussian {
     async handleNameInputRussian(chatId, messageText) {
         if (!this.waitingForName.has(chatId)) return;
 
-        this.waitingForName.delete(chatId);
-        await db.query('UPDATE users SET name = $1 WHERE chat_id = $2', [messageText, chatId]);
-        await this.showDoctorMenuRussian(chatId);
+        // Проверяем формат ФИО (должно быть минимум 2 слова)
+        const nameParts = messageText.trim().split(/\s+/);
+        if (nameParts.length < 2) {
+            await this.bot.sendMessage(chatId,
+                "Пожалуйста, введите полное ФИО в формате: Фамилия Имя Отчество"
+            );
+            return;
+        }
+
+        try {
+            const surname = nameParts[0]; // Берём только фамилию для поля name
+
+            // Обновляем данные пользователя
+            await db.query(
+                'UPDATE users SET name = $1, fio = $2 WHERE chat_id = $3',
+                [surname, messageText, chatId]
+            );
+
+            this.waitingForName.delete(chatId);
+            await this.showDoctorMenuRussian(chatId);
+        } catch (error) {
+            console.error('Error updating user data:', error);
+            await this.bot.sendMessage(chatId,
+                "Произошла ошибка при сохранении данных. Пожалуйста, попробуйте еще раз."
+            );
+            return;
+        }
+    }
+
+
+    async handleDoctorInfoRussian(chatId) {
+        try {
+            // Получаем doctor_key для текущего пользователя
+            const userResult = await db.query('SELECT doctor_key FROM users WHERE chat_id = $1', [chatId]);
+            const doctorKey = userResult.rows[0]?.doctor_key;
+
+            if (!doctorKey) {
+                await this.bot.sendMessage(chatId, "Информация о враче недоступна.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: 'Назад', callback_data: 'doctor_connection'}]
+                        ]
+                    }
+                });
+                return;
+            }
+
+            // Получаем информацию о враче
+            const doctorResult = await db.query('SELECT name, description FROM doctors WHERE doctor_key = $1', [doctorKey]);
+            const doctor = doctorResult.rows[0];
+
+            if (!doctor) {
+                await this.bot.sendMessage(chatId, "Информация о враче не найдена.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{text: 'Назад', callback_data: 'doctor_connection'}]
+                        ]
+                    }
+                });
+                return;
+            }
+
+            const message = `Ваш врач: ${doctor.name}\nКраткая информация о враче:\n${doctor.description || 'Информация отсутствует'}`;
+
+            await this.bot.sendMessage(chatId, message, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        } catch (error) {
+            console.error('Error fetching doctor info:', error);
+            await this.bot.sendMessage(chatId, "Произошла ошибка при получении информации о враче.", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+        }
     }
 
     async handleViewMessagesRussian(chatId) {
+        // Запрос для получения сообщений из обеих таблиц
         const messages = await db.query(`
-        SELECT message_text, message_date, 'Вы' AS sender
+        SELECT user_id AS patient_id, doctor_key, message_text, message_date, sender_type
         FROM messages
         WHERE user_id = $1
-        
+
         UNION ALL
-        
-        SELECT message_text, message_date, 'Врач' AS sender
+
+        SELECT patient_id, doctor_key, message_text, message_date, NULL AS sender_type
         FROM doctors_messages
         WHERE patient_id = $1
-        
         ORDER BY message_date DESC
     `, [chatId]);
 
-        let messageText = "";
         if (messages.rows.length > 0) {
-            messageText = "История переписки:\n\n";
-            for (const msg of messages.rows) {
-                messageText += `${msg.sender} (${new Date(msg.message_date).toLocaleString()}):\n`;
-                if (msg.message_text) {
-                    messageText += `${msg.message_text}\n`;
-                }
-                messageText += '\n';
-            }
-        } else {
-            messageText = "У вас нет сообщений.";
-        }
+            // Формируем данные для Excel
+            const excelData = [];
+            excelData.push(['Отправитель', 'Текст сообщения', 'Дата отправления']); // Заголовок
 
-        await this.bot.sendMessage(chatId, messageText, {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: 'Назад', callback_data: 'doctor_connection' }]
-                ]
+            messages.rows.forEach(msg => {
+                // Определяем отправителя
+                const sender = msg.sender_type === 'patient' ? 'Пациент' : 'Врач';  // Если есть sender_type === 'patient', то пациент
+                const date = new Date(msg.message_date).toLocaleString();  // Форматируем дату
+
+                excelData.push([sender, msg.message_text, date]);
+            });
+
+            // Создаем рабочий лист Excel
+            const ws = XLSX.utils.aoa_to_sheet(excelData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Messages');
+
+            // Применяем стили для таблицы
+            const wscols = [
+                { wpx: 100 },  // Для столбца 'Отправитель'
+                { wpx: 300 },  // Для столбца 'Текст сообщения'
+                { wpx: 150 }   // Для столбца 'Дата отправления'
+            ];
+            ws['!cols'] = wscols;
+
+            // Добавляем стили для фона и границ
+            const borderStyle = {
+                top: { style: 'thin', color: { rgb: '000000' } },
+                left: { style: 'thin', color: { rgb: '000000' } },
+                bottom: { style: 'thin', color: { rgb: '000000' } },
+                right: { style: 'thin', color: { rgb: '000000' } }
+            };
+
+            const fillStyle = {
+                fill: {
+                    fgColor: { rgb: 'D0EFFF' }  // Нежноголубой цвет фона
+                }
+            };
+
+            // Применяем стили для заголовков и ячеек
+            for (let row = 0; row < excelData.length; row++) {
+                for (let col = 0; col < excelData[row].length; col++) {
+                    const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
+
+                    if (!cell) continue;
+
+                    // Добавляем фон только для заголовков
+                    if (row === 0) {
+                        cell.s = { border: borderStyle, fill: fillStyle, font: { bold: true } };
+                    } else {
+                        cell.s = { border: borderStyle };
+                    }
+                }
             }
-        });
+
+            // Сохраняем Excel файл в папке 'public'
+            const dirPath = path.join(__dirname, '../../../public');
+            const filePath = path.join(dirPath, 'messages.xlsx');
+
+            // Отправляем кнопку "Назад" до отправки файла
+            await this.bot.sendMessage(chatId, "Вот ваша история сообщений:", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Назад', callback_data: 'doctor_connection' }]
+                    ]
+                }
+            });
+
+            // Записываем файл
+            XLSX.writeFile(wb, filePath);
+
+            // Отправляем файл пользователю
+            await this.bot.sendDocument(chatId, fs.createReadStream(filePath), {}, {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Назад', callback_data: 'doctor_connection' }]
+                    ]
+                }
+            });
+
+            // Удаляем временный файл после отправки
+            fs.unlink(filePath, (err) => {
+                if (err) console.error('Ошибка при удалении файла:', err);
+            });
+        } else {
+            // Если нет сообщений, отправляем уведомление
+            await this.bot.sendMessage(chatId, "У вас нет сообщений.", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: 'Назад', callback_data: 'doctor_connection' }]
+                    ]
+                }
+            });
+        }
     }
 
 
     async handleSendTextMessageRussian(chatId) {
+        // Проверяем бан перед разрешением отправки текстового сообщения
+        const isBanned = await this.checkUserBan(chatId);
+
+        if (isBanned) {
+            await this.bot.sendMessage(chatId, "Врач запретил вам писать сообщения", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+            return;
+        }
+
         this.waitingForMessage.add(chatId);
         const message = await this.bot.sendMessage(chatId,
             "Напишите ваше сообщение:", {
@@ -160,11 +323,25 @@ class DoctorPatientHandlerRussian {
                     ]
                 }
             });
-        // Сохраняем ID сообщения для последующего удаления клавиатуры
         this.messageToEdit = message.message_id;
     }
 
+
     async handleSendFileRussian(chatId) {
+        // Проверяем бан перед разрешением отправки файла
+        const isBanned = await this.checkUserBan(chatId);
+
+        if (isBanned) {
+            await this.bot.sendMessage(chatId, "Врач запретил вам писать сообщения", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+            return;
+        }
+
         this.waitingForFile.add(chatId);
         const message = await this.bot.sendMessage(chatId,
             "Отправьте файл (документ, фото, видео и т.д.):", {
@@ -174,7 +351,6 @@ class DoctorPatientHandlerRussian {
                     ]
                 }
             });
-        // Сохраняем ID сообщения для последующего удаления клавиатуры
         this.messageToEdit = message.message_id;
     }
 
@@ -280,6 +456,46 @@ class DoctorPatientHandlerRussian {
         }
     }
 
+    async checkUserBan(chatId) {
+        const userResult = await db.query('SELECT doctor_key FROM users WHERE chat_id = $1', [chatId]);
+        if (!userResult.rows.length) return false;
+
+        const doctorKey = userResult.rows[0].doctor_key;
+        const banResult = await db.query(
+            'SELECT * FROM bans WHERE user_id = $1 AND doctor_key = $2',
+            [chatId, doctorKey]
+        );
+
+        return banResult.rows.length > 0;
+    }
+
+    async showMessageTypeChoiceRussian(chatId) {
+        // Проверяем бан перед показом меню выбора типа сообщения
+        const isBanned = await this.checkUserBan(chatId);
+
+        if (isBanned) {
+            await this.bot.sendMessage(chatId, "Врач запретил вам писать сообщения", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{text: 'Назад', callback_data: 'doctor_connection'}]
+                    ]
+                }
+            });
+            return;
+        }
+
+        await this.bot.sendMessage(chatId, "Выберите тип сообщения:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{text: 'Отправить текстовое сообщение', callback_data: 'send_text_message'}],
+                    [{text: 'Отправить файл', callback_data: 'send_file'}],
+                    [{text: 'Назад', callback_data: 'doctor_connection'}]
+                ]
+            }
+        });
+    }
+
+
 
     async handleTextMessageRussian(chatId, messageText) {
         if (!this.waitingForMessage.has(chatId)) return;
@@ -334,6 +550,8 @@ class DoctorPatientHandlerRussian {
     async handleChangeDoctorRussian(chatId) {
         await db.query('UPDATE users SET doctor_key = NULL, key_valid = FALSE WHERE chat_id = $1', [chatId]);
         await this.requestDoctorKeyRussian(chatId);
+        this.clearWaitingStates(chatId); // Очищаем предыдущие состояния
+
     }
 
     async handleMessageRussian(msg) {
@@ -399,6 +617,9 @@ class DoctorPatientHandlerRussian {
                 break;
             case 'send_file':
                 await this.handleSendFileRussian(chatId);
+                break;
+            case 'doctor_info':
+                await this.handleDoctorInfoRussian(chatId);
                 break;
             case 'change_doctor':
                 await this.handleChangeDoctorRussian(chatId);
