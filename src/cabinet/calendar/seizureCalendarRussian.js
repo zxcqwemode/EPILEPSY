@@ -49,9 +49,9 @@ async function seizureCalendarRussian(bot, chatId, messageId, monthOffset = 0, s
 
             if (dayRecord) {
                 if (dayRecord.had_seizure) {
-                    buttonLabel += ' 🔸';
+                    buttonLabel += '🔸';
                 } else if (dayRecord.note && !dayRecord.had_seizure) {
-                    buttonLabel += ' ✅';
+                    buttonLabel += '✅';
                 }
             }
 
