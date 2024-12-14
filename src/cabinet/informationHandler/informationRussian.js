@@ -5,32 +5,38 @@ const fs = require('fs');
 const materials = {
     'neurons': {
         title: 'Принципы работы нейронов',
-        message: 'Принципы работы нейронов:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=YqHECLCoOzo&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=2&pp=iAQB)',
+        message: 'Принципы работы нейронов:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=YqHECLCoOzo&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=2&pp=iAQB)',
         pdfFile: 'neurons.pdf'
     },
     'brain': {
         title: 'Строение головного мозга',
-        message: 'Строение головного мозга:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=-f1mwnnuqHI&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=3&pp=iAQB)',
+        message: 'Строение головного мозга:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=-f1mwnnuqHI&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=3&pp=iAQB)',
         pdfFile: 'brain.pdf'
     },
     'seizures': {
         title: 'Причины развития приступов',
-        message: 'Причины развития приступов:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=nKiI0jr-tLw&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=4&pp=iAQB)',
+        message: 'Причины развития приступов:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=nKiI0jr-tLw&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=4&pp=iAQB)',
         pdfFile: 'seizures.pdf'
     },
     'diagnosis': {
         title: 'Методы диагностики эпилепсии',
-        message: 'Методы диагностики эпилепсии:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=aaNWEOvOf2E&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=5&pp=iAQB)',
+        message: 'Методы диагностики эпилепсии:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=aaNWEOvOf2E&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=5&pp=iAQB)',
         pdfFile: 'diagnosis.pdf'
     },
     'treatment': {
         title: 'Лечение эпилепсии',
-        message: 'Лечение эпилепсии:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=JM1WKpFpgc8&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=6&pp=iAQB)',
+        message: 'Лечение эпилепсии:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=JM1WKpFpgc8&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=6&pp=iAQB)',
         pdfFile: 'treatment.pdf'
     },
     'memo': {
         title: 'Памятка для людей с эпилепсией',
-        message: 'Памятка для людей с эпилепсией:\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=W-ihjVWu6qk&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=7&pp=iAQB)',
+        message: 'Памятка для людей с эпилепсией:',
+//\nВидеоматериал по данной теме: [Смотреть видео](https://www.youtube.com/watch?v=W-ihjVWu6qk&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=7&pp=iAQB)',
         pdfFile: 'memo.pdf'
     },
     'ilae': {

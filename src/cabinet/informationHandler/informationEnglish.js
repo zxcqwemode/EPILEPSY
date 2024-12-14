@@ -5,32 +5,38 @@ const fs = require('fs');
 const materials = {
     'neurons': {
         title: 'Principles of Neuron Function',
-        message: 'Principles of Neuron Function:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=YqHECLCoOzo&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=2&pp=iAQB)',
+        message: 'Principles of Neuron Function:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=YqHECLCoOzo&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=2&pp=iAQB)',
         pdfFile: 'neurons.pdf'
     },
     'brain': {
         title: 'Brain Structure',
-        message: 'Brain Structure:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=-f1mwnnuqHI&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=3&pp=iAQB)',
+        message: 'Brain Structure:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=-f1mwnnuqHI&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=3&pp=iAQB)',
         pdfFile: 'brain.pdf'
     },
     'seizures': {
         title: 'Causes of Seizures',
-        message: 'Causes of Seizures:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=nKiI0jr-tLw&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=4&pp=iAQB)',
+        message: 'Causes of Seizures:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=nKiI0jr-tLw&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=4&pp=iAQB)',
         pdfFile: 'seizures.pdf'
     },
     'diagnosis': {
         title: 'Epilepsy Diagnosis Methods',
-        message: 'Epilepsy Diagnosis Methods:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=aaNWEOvOf2E&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=5&pp=iAQB)',
+        message: 'Epilepsy Diagnosis Methods:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=aaNWEOvOf2E&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=5&pp=iAQB)',
         pdfFile: 'diagnosis.pdf'
     },
     'treatment': {
         title: 'Epilepsy Treatment',
-        message: 'Epilepsy Treatment:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=JM1WKpFpgc8&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=6&pp=iAQB)',
+        message: 'Epilepsy Treatment:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=JM1WKpFpgc8&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=6&pp=iAQB)',
         pdfFile: 'treatment.pdf'
     },
     'memo': {
         title: 'Epilepsy Memo',
-        message: 'Epilepsy Memo:\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=W-ihjVWu6qk&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=7&pp=iAQB)',
+        message: 'Epilepsy Memo:',
+//\nVideo material on this topic: [Watch Video](https://www.youtube.com/watch?v=W-ihjVWu6qk&list=PL_VDgqjcR4c1llliw8L2zbilbvyfPzY23&index=7&pp=iAQB)',
         pdfFile: 'memo.pdf'
     },
     'ilae': {
