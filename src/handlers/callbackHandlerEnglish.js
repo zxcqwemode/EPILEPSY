@@ -97,8 +97,7 @@ module.exports = async function handleCallbackQueryEnglish(bot, callbackQuery) {
                 message_id: messageId,
             });
 
-            const finalMessage = `Great 👍! Your profile setup is complete!\n
-If you want to change the settings, use the /start command.\nYour personal profile is now available!\nTo access your profile, use the /myProfile command.`;
+            const finalMessage = `Great 👍! Your profile setup is complete!\nYour personal profile is now available!\nTo access your profile, use the /myProfile or /start commands.`;
 
             await bot.sendMessage(chatId, finalMessage);
 

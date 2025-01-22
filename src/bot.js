@@ -362,7 +362,7 @@ initializeDatabase().then(() => {
 
         } else if (data === 'doctor_connection' || data === 'view_messages' || data === 'send_message' ||
             data === 'change_doctor' || data === 'retry_key' || data === 'choose_message_type' ||
-            data === 'send_text_message' || data === 'send_file'|| data === 'doctor_info') {
+            data === 'send_text_message' || data === 'send_file' || data === 'doctor_info') {
             if (userLanguage === 'English') {
                 await doctorHandlerEnglish.handleCallbackEnglish(callbackQuery);
             } else {
@@ -401,19 +401,18 @@ initializeDatabase().then(() => {
             }
 
         } else if (data === 'back_to_profile') {
-            await bot.editMessageReplyMarkup({ inline_keyboard: [] }, {
+            await bot.editMessageReplyMarkup({inline_keyboard: []}, {
                 chat_id: chatId,
                 message_id: callbackQuery.message.message_id
             });
             const userLanguage = userLanguages[chatId] || 'Русский';
             if (userLanguage === 'English') {
-                await callbackMyProfileEnglish(bot, { chat: { id: chatId } });
+                await callbackMyProfileEnglish(bot, {chat: {id: chatId}});
             } else {
-                await callbackMyProfileRussian(bot, { chat: { id: chatId } });
+                await callbackMyProfileRussian(bot, {chat: {id: chatId}});
             }
 
-        }
-        else if (data === 'statistic') {
+        } else if (data === 'statistic') {
             const userLanguage = userLanguages[chatId] || 'Русский';
             const messageId = callbackQuery.message.message_id;
 
@@ -424,7 +423,33 @@ initializeDatabase().then(() => {
             }
 
 
-        }else if (data === 'notifications') {
+        } else if (data === 'reregistration') {
+
+                // Check if user is a doctor
+                const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
+                const isDoctor = doctorResult.rows.length > 0;
+
+                if (isDoctor) {
+                    // Delete doctor's data
+                    await db.query('DELETE FROM doctors_messages WHERE doctor_id = $1', [chatId]);
+                    await db.query('DELETE FROM messages WHERE doctor_key = (SELECT doctor_key FROM doctors WHERE chat_id = $1)', [chatId]);
+                    await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
+                } else {
+                    // Delete patient's data
+                    await db.query('DELETE FROM notifications WHERE user_id = $1', [chatId]);
+                    await db.query('DELETE FROM calendar WHERE user_id = $1', [chatId]);
+                    await db.query('DELETE FROM messages WHERE user_id = $1', [chatId]);
+                    await db.query('DELETE FROM bans WHERE user_id = $1', [chatId]);
+                    await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
+                }
+                await bot.deleteMessage(chatId, callbackQuery.message.message_id);
+                // Restart registration process
+                await handleStartCommand(bot, {chat: {id: chatId}});
+
+        }
+
+
+        else if (data === 'notifications') {
             const messageId = callbackQuery.message.message_id;
             const userResult = await db.query('SELECT language FROM users WHERE chat_id = $1', [chatId]);
             const userLanguage = userResult.rows[0].language;

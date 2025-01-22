@@ -39,6 +39,9 @@ Your Profile:
                         { text: 'Reminders ⏰', callback_data: 'notifications' },
                     ],
                     [
+                        { text: 'Re-registration', callback_data: 'reregistration' }
+                    ],
+                    [
                         { text: 'Contact Doctor 👨‍⚕️', callback_data: 'doctor_connection' }
                     ],
                 ],

@@ -30,7 +30,8 @@ async function showDoctorMainMenu(bot, chatId, doctorKey) {
     const options = {
         reply_markup: {
             inline_keyboard: [
-                [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }]
+                [{ text: 'Список пациентов', callback_data: 'patient_list_page_1' }],
+                [{ text: 'Повторная регистрация', callback_data: 'doctor_reregistration' }]
             ],
         },
     };
@@ -643,6 +644,12 @@ async function handleDoctorCallbackRussian(bot, callbackQuery) {
         }
         else if (data.startsWith('patient_info_index_')) {
             await handlePatientInfoRequestRussian(bot, chatId, messageId, data);
+        }
+        else if (data.startsWith('doctor_reregistration')) {
+            await db.query('DELETE FROM doctors_messages WHERE doctor_id = $1', [chatId]);
+            await db.query('DELETE FROM messages WHERE doctor_key = (SELECT doctor_key FROM doctors WHERE chat_id = $1)', [chatId]);
+            await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
+            await bot.sendMessage(chatId, 'Ваш аккаунт врача был удален.\nЧтобы пройти процесс регистрации заново, используйте /start');
         }
     } catch (err) {
         console.error('Ошибка при обработке callback запроса врача:', err);

@@ -39,6 +39,9 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
                         { text: 'Напоминания ⏰', callback_data: 'notifications' }
                     ],
                     [
+                        { text: 'Повторная регистрация', callback_data: 'reregistration' }
+                    ],
+                    [
                         { text: 'Связь с врачом 👨‍⚕️', callback_data: 'doctor_connection' }
                     ],
                 ],
