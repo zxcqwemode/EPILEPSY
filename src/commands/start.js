@@ -10,6 +10,7 @@ module.exports = async function handleStartCommand(bot, msg) {
     try {
         // Проверяем существование пользователя в обеих таблицах
         const userCheck = await db.query('SELECT * FROM users WHERE chat_id = $1', [chatId]);
+        //const genderCheck = await db.query('SELECT gender FROM users WHERE chat_id = $1', [chatId]);
         const doctorCheck = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
 
         // Если пользователь существует как доктор
@@ -38,7 +39,7 @@ module.exports = async function handleStartCommand(bot, msg) {
         await db.query('INSERT INTO users (chat_id, step) VALUES ($1, $2)',
             [chatId, 'language_choice']);
 
-       console.log('New user with chat_id: ${chatId} added to database.');
+       console.log(`New user with chat_id: ${chatId} added to database`);
 
         const options = {
             reply_markup: {

@@ -5,9 +5,9 @@ module.exports = async function callbackMyProfileEnglish(bot, msg) {
 
     try {
         // Запрос к базе данных для получения информации о пользователе
-        const user = await db.query('SELECT * FROM users WHERE chat_id = $1', [chatId]);
+        const user = await db.query('SELECT chat_id, gender, timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
 
-        if (user.rows.length === 0) {
+        if (user.rows.length === 0 || user.rows[0].gender === null || user.rows[0].timezone_gmt === null){
             await bot.sendMessage(chatId, 'Error! Your profile was not found.');
             return;
         }
