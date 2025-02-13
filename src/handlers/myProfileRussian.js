@@ -7,10 +7,10 @@ module.exports = async function callbackMyProfileRussian(bot, msg) {
         // Запрос к базе данных для получения информации о пользователе
         const user = await db.query('SELECT chat_id, gender, timezone_gmt FROM users WHERE chat_id = $1', [chatId]);
 
-        if (user.rows.length === 0 || user.rows[0].gender === null || user.rows[0].timezone_gmt === null) {
-            await bot.sendMessage(chatId, 'Ошибка! Ваш профиль не найден или содержит недостаточную информацию.');
-            return;
-        }
+        // if (user.rows.length === 0 || user.rows[0].gender === null || user.rows[0].timezone_gmt === null) {
+        //     await bot.sendMessage(chatId, 'Ошибка! Ваш профиль не найден или содержит недостаточную информацию.');
+        //     return;
+        // }
 
         const { chat_id, gender, timezone_gmt, notification_period, notification_hour_msk } = user.rows[0];
 

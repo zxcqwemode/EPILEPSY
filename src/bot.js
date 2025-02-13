@@ -337,18 +337,18 @@ initializeDatabase().then(() => {
         const data = callbackQuery.data;
 
         // Проверяем, является ли пользователь врачом
-        const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
-        const isDoctor = doctorResult.rows.length > 0;
-
-        if (isDoctor) {
-            const doctorLanguage = doctorResult.rows[0].language;
-            if (doctorLanguage === 'English') {
-                await handleDoctorCallbackEnglish(bot, callbackQuery);
-            } else {
-                await handleDoctorCallbackRussian(bot, callbackQuery);
-            }
-            return;
-        }
+        // const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
+        // const isDoctor = doctorResult.rows.length > 0;
+        //
+        // if (isDoctor) {
+        //     const doctorLanguage = doctorResult.rows[0].language;
+        //     if (doctorLanguage === 'English') {
+        //         await handleDoctorCallbackEnglish(bot, callbackQuery);
+        //     } else {
+        //         await handleDoctorCallbackRussian(bot, callbackQuery);
+        //     }
+        //     return;
+        // }
 
         const userResult = await db.query('SELECT language FROM users WHERE chat_id = $1', [chatId]);
         const userLanguage = userResult.rows[0]?.language;
@@ -429,20 +429,20 @@ initializeDatabase().then(() => {
                 const doctorResult = await db.query('SELECT * FROM doctors WHERE chat_id = $1', [chatId]);
                 const isDoctor = doctorResult.rows.length > 0;
 
-                if (isDoctor) {
-                    // Delete doctor's data
-                    await db.query('DELETE FROM doctors_messages WHERE doctor_id = $1', [chatId]);
-                    await db.query('DELETE FROM messages WHERE doctor_key = (SELECT doctor_key FROM doctors WHERE chat_id = $1)', [chatId]);
-                    await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
-                } else {
-                    // Delete patient's data
-                    await db.query('DELETE FROM notifications WHERE user_id = $1', [chatId]);
-                    await db.query('DELETE FROM calendar WHERE user_id = $1', [chatId]);
-                    await db.query('DELETE FROM messages WHERE user_id = $1', [chatId]);
-                    await db.query('DELETE FROM bans WHERE user_id = $1', [chatId]);
-                    await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
-                }
-                await bot.deleteMessage(chatId, callbackQuery.message.message_id);
+                // if (isDoctor) {
+                //     // Delete doctor's data
+                //     await db.query('DELETE FROM doctors_messages WHERE doctor_id = $1', [chatId]);
+                //     await db.query('DELETE FROM messages WHERE doctor_key = (SELECT doctor_key FROM doctors WHERE chat_id = $1)', [chatId]);
+                //     await db.query('DELETE FROM doctors WHERE chat_id = $1', [chatId]);
+                // } else {
+                //     // Delete patient's data
+                //     await db.query('DELETE FROM notifications WHERE user_id = $1', [chatId]);
+                //     await db.query('DELETE FROM calendar WHERE user_id = $1', [chatId]);
+                //     await db.query('DELETE FROM messages WHERE user_id = $1', [chatId]);
+                //     await db.query('DELETE FROM bans WHERE user_id = $1', [chatId]);
+                //     await db.query('DELETE FROM users WHERE chat_id = $1', [chatId]);
+                // }
+                // await bot.deleteMessage(chatId, callbackQuery.message.message_id);
                 // Restart registration process
                 await handleStartCommand(bot, {chat: {id: chatId}});
 
